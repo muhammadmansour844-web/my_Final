@@ -1,0 +1,108 @@
+/* Company-specific styles */
+
+.productGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+/* Discount Tag */
+.discountTag {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  color: var(--white);
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+/* Product Info Row */
+.productMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.3rem;
+}
+
+.priceTag {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--primary-color);
+}
+
+.priceOld {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.stockTag {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 20px;
+}
+
+.stockLow {
+  background: rgba(231, 76, 60, 0.1);
+  color: #e74c3c;
+}
+
+.stockOk {
+  background: rgba(46, 204, 113, 0.1);
+  color: #27ae60;
+}
+
+/* Order Action Buttons */
+.orderActions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.orderBtn {
+  padding: 0.35rem 0.8rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.orderBtnApprove {
+  background: rgba(46, 204, 113, 0.1);
+  color: #27ae60;
+}
+
+.orderBtnApprove:hover {
+  background: #2ecc71;
+  color: var(--white);
+}
+
+.orderBtnReject {
+  background: rgba(231, 76, 60, 0.1);
+  color: #e74c3c;
+}
+
+.orderBtnReject:hover {
+  background: #e74c3c;
+  color: var(--white);
+}
+
+.orderBtnShip {
+  background: rgba(155, 89, 182, 0.1);
+  color: #8e44ad;
+}
+
+.orderBtnShip:hover {
+  background: #9b59b6;
+  color: var(--white);
+}
