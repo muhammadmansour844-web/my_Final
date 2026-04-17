@@ -27,21 +27,21 @@ const sidebarConfig = {
     ]
   },
   company_admin: {
-    title: 'Company Hub',
-    subtitle: 'Supplier Portal',
-    icon: '🏭',
+    title: 'PharmaBridge',
+    subtitle: 'CLINICAL CURATOR',
+    icon: '🏢',
     sections: [
       {
-        label: 'Products',
+        label: 'Main',
         links: [
-          { id: 'products', label: 'My Products', icon: '💊' },
-          { id: 'stats', label: 'Statistics', icon: '📊' },
-        ]
-      },
-      {
-        label: 'Orders',
-        links: [
-          { id: 'orders', label: 'Incoming Orders', icon: '📥' },
+          { id: 'dashboard', label: 'Dashboard', icon: '🎛️' },
+          { id: 'products', label: 'Products', icon: '📦' },
+          { id: 'my_orders', label: 'My Orders', icon: '🛒' },
+          { id: 'incoming_orders', label: 'Incoming Orders', icon: '📥' },
+          { id: 'my_products', label: 'My Products', icon: '💊' },
+          { id: 'promotions', label: 'Promotions', icon: '📢' },
+          { id: 'reports', label: 'Reports', icon: '📊' },
+          { id: 'settings', label: 'Settings', icon: '⚙️' },
         ]
       }
     ]

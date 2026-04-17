@@ -106,3 +106,466 @@
   background: #9b59b6;
   color: var(--white);
 }
+
+/* Company Overview Styles */
+.overviewContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  padding: 1rem;
+}
+
+.overviewHeader {
+  margin-bottom: 0.5rem;
+}
+
+.overviewTitle {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: #0b2e20;
+  margin: 0;
+  letter-spacing: -0.5px;
+}
+
+.overviewSubtitle {
+  font-size: 1rem;
+  color: #556b60;
+  margin-top: 0.5rem;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.5rem;
+}
+
+.statCard {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.statCardDarkRed {
+  background: #6a2c2c;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.statCardDarkGreen {
+  background: #0d4a30;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.statTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.statLabel {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #556b60;
+  letter-spacing: 1px;
+}
+
+.statLabelWhite {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.7);
+  letter-spacing: 1px;
+}
+
+.statIconGreen {
+  color: #1e8f5e;
+  font-size: 1.2rem;
+}
+
+.statIconWhite {
+  color: rgba(255,255,255,0.7);
+  font-size: 1.2rem;
+}
+
+.statValue {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #0b2e20;
+  line-height: 1.1;
+  margin-bottom: 0.5rem;
+}
+
+.statValueWhite {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: white;
+  line-height: 1.1;
+  margin-bottom: 0.5rem;
+}
+
+.statChange {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #1e8f5e;
+}
+
+.statChangeWhite {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: rgba(255,255,255,0.8);
+}
+
+.statChangeInfo {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #7b8e84;
+}
+
+/* Main Layout */
+.mainGrid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1.5rem;
+}
+
+.leftCol {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.rightCol {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Buttons */
+.addBtn {
+  background: #0d4a30;
+  color: white;
+  border: none;
+  padding: 0.9rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  align-self: flex-start;
+  transition: background 0.2s;
+}
+
+.addBtn:hover {
+  background: #156242;
+}
+
+/* Table Card */
+.tableCard {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+}
+
+.tableHeaderRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.tableTitle {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #0b2e20;
+  margin: 0;
+}
+
+.viewHistory {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #3b5247;
+  text-decoration: none;
+  letter-spacing: 0.5px;
+}
+
+.orderTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.orderTable th {
+  text-align: left;
+  font-size: 0.75rem;
+  color: #8b9d94;
+  font-weight: 700;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e1e7e4;
+  letter-spacing: 0.5px;
+}
+
+.orderTable td {
+  padding: 1rem 0;
+  border-bottom: 1px solid #f1f4f3;
+  vertical-align: middle;
+}
+
+.orderTable tr:last-child td {
+  border-bottom: none;
+}
+
+.clientCell {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.clientAvatar {
+  width: 40px;
+  height: 40px;
+  background: #e8eee9;
+  color: #1e8f5e;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+}
+
+.clientName {
+  font-weight: 700;
+  color: #0b2e20;
+  font-size: 0.95rem;
+}
+
+.clientDept {
+  font-size: 0.8rem;
+  color: #7b8e84;
+}
+
+.orderIdText {
+  font-family: monospace;
+  color: #7b8e84;
+  font-size: 0.9rem;
+}
+
+.priorityBadge {
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+}
+
+.badgeStat {
+  background: #763232;
+  color: white;
+}
+
+.badgeStandard {
+  background: #4ae89e;
+  color: #0b2e20;
+}
+
+.badgeBulk {
+  background: #d8e0db;
+  color: #4a5c52;
+}
+
+.rowActions {
+  display: flex;
+  gap: 0.8rem;
+}
+
+.actionAccept {
+  color: #1e8f5e;
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+
+.actionReject {
+  color: #d14f4f;
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+
+/* Critical Replenishment */
+.criticalCard {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+}
+
+.criticalTitle {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #0b2e20;
+  margin: 0 0 1.5rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.exclamationRed {
+  color: #d14f4f;
+  font-weight: 800;
+  font-size: 1.4rem;
+}
+
+.criticalList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.criticalItem {
+  background: #fafaf9;
+  border-radius: 8px;
+  padding: 1rem;
+  border-left: 4px solid #d14f4f;
+}
+
+.critTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.critName {
+  font-weight: 700;
+  color: #0b2e20;
+  font-size: 0.9rem;
+}
+
+.critBadge {
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 0.2rem 0.5rem;
+  border-radius: 20px;
+}
+
+.critBar {
+  height: 4px;
+  background: #e5e7eb;
+  border-radius: 2px;
+  margin-bottom: 0.8rem;
+  position: relative;
+}
+
+.critBar::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 15%;
+  background: #d14f4f;
+  border-radius: 2px;
+}
+
+.critBottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.critActionBtn {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #0b2e20;
+  background: #e8eee9;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+}
+
+.critEta {
+  font-size: 0.75rem;
+  color: #7b8e84;
+}
+
+.restockBtn {
+  width: 100%;
+  background: #0d4a30;
+  color: white;
+  border: none;
+  padding: 1rem;
+  border-radius: 8px;
+  font-weight: 700;
+  margin-top: 1.5rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+/* Market Pulse */
+.marketPulse {
+  background: linear-gradient(135deg, #719280, #547462);
+  border-radius: 12px;
+  padding: 1.5rem;
+  position: relative;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 140px;
+}
+
+.pulseLabel {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin-bottom: 0.5rem;
+  color: rgba(255,255,255,0.8);
+}
+
+.pulseDesc {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  line-height: 1.4;
+}
+
+.pulseLink {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: rgba(255,255,255,0.9);
+  cursor: pointer;
+}
+
+.pulseFloatBtn {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #0d4a30;
+  color: white;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  cursor: pointer;
+}
