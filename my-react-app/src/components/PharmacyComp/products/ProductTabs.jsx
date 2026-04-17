@@ -1,5 +1,5 @@
 import React from 'react';
-import styles from './PharmaBridge.module.css';
+import styles from '../styles/PharmaBridge.module.css';
 
 export default function ProductTabs() {
     return (

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { FiSearch } from 'react-icons/fi'
-import styles from './Pharmacy.module.css'
-import dStyles from '../Dashescomp/Dashes.module.css'
+import styles from '../styles/Pharmacy.module.css'
+import dStyles from '../../Dashescomp/Dashes.module.css'
 
 const API_PRODUCTS = 'http://localhost:3000/api/products'
 

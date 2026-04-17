@@ -1,6 +1,6 @@
 import React from 'react'
-import styles from './Pharmacy.module.css'
-import dStyles from '../Dashescomp/Dashes.module.css'
+import styles from '../styles/Pharmacy.module.css'
+import dStyles from '../../Dashescomp/Dashes.module.css'
 
 function CartPanel({ cartItems, cartId, onUpdateQty, onRemove, onCheckout, loading }) {
   const total = cartItems.reduce((sum, item) => sum + (parseFloat(item.price) * item.quantity), 0)

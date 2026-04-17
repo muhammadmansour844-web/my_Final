@@ -4,8 +4,8 @@ import LoginPage from './pages/LoginPage'
 import AdminDash from './pages/AdminDash'
 import CompanyDash from './pages/CompanyDash'
 import PharmacyDash from './pages/PharmacyDash'
-import ProductDetailLayout from './components/pharmacycomp/ProductDetailLayout'
-import ProductBrowsingLayout from './components/pharmacycomp/ProductBrowsingLayout'
+import ProductDetailLayout from './components/PharmacyComp/products/ProductDetailLayout'
+import ProductBrowsingLayout from './components/PharmacyComp/products/ProductBrowsingLayout'
 
 function App() {
   return (

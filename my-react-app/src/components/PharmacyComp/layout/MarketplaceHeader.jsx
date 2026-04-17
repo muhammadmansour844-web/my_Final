@@ -1,8 +1,8 @@
 import React from 'react';
 import { FiSearch, FiBell, FiUser } from 'react-icons/fi';
-import styles from './PharmaBridge.module.css';
+import styles from '../styles/PharmaBridge.module.css';
 
-export default function Header() {
+export default function MarketplaceHeader() {
     return (
         <header className={styles.header}>
             <div className={styles.searchBar}>

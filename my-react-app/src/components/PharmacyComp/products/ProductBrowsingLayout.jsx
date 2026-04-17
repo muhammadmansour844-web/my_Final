@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import Sidebar from './Sidebar';
-import Header from './Header';
+import MarketplaceSidebar from '../layout/MarketplaceSidebar';
+import MarketplaceHeader from '../layout/MarketplaceHeader';
 import ProductFilters from './ProductFilters';
 import ProductGrid from './ProductGrid';
-import styles from './PharmaBrowsing.module.css';
+import styles from '../styles/PharmaBrowsing.module.css';
 
 const MOCK_PRODUCTS = [
     {
@@ -98,9 +98,9 @@ export default function ProductBrowsingLayout() {
 
     return (
         <div className={styles.layout}>
-            <Sidebar />
+            <MarketplaceSidebar />
             <div className={styles.main}>
-                <Header />
+                <MarketplaceHeader />
                 <div className={styles.content}>
                     <div className={styles.breadcrumb}>
                         <span>INVENTORY</span> &gt; <strong>PRODUCT BROWSING</strong>

@@ -1,17 +1,17 @@
 import React from 'react';
-import Sidebar from './Sidebar';
-import Header from './Header';
+import MarketplaceSidebar from '../layout/MarketplaceSidebar';
+import MarketplaceHeader from '../layout/MarketplaceHeader';
 import ProductHero from './ProductHero';
 import ProductTabs from './ProductTabs';
 import RelatedProducts from './RelatedProducts';
-import styles from './PharmaBridge.module.css';
+import styles from '../styles/PharmaBridge.module.css';
 
 export default function ProductDetailLayout() {
     return (
         <div className={styles.layout}>
-            <Sidebar />
+            <MarketplaceSidebar />
             <div className={styles.main}>
-                <Header />
+                <MarketplaceHeader />
                 <div className={styles.content}>
                     <div className={styles.breadcrumb}>
                         <span>PRODUCT</span> &gt; <span>CARDIOVASCULAR</span> &gt; <strong>LIPID-LOWERING AGENT 40MG</strong>

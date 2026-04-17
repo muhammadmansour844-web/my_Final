@@ -1,6 +1,6 @@
 import React from 'react';
 import { FiCheckCircle, FiShoppingCart, FiTruck, FiShield } from 'react-icons/fi';
-import styles from './PharmaBridge.module.css';
+import styles from '../styles/PharmaBridge.module.css';
 
 export default function ProductHero() {
     return (

@@ -1,5 +1,5 @@
 import React from 'react';
-import styles from './PharmaBrowsing.module.css';
+import styles from '../styles/PharmaBrowsing.module.css';
 
 export default function ProductFilters({ filters, onFilterChange }) {
     const categoriesList = ['Cardiovascular', 'Anti-Infectives', 'Neurology', 'Endocrinology'];

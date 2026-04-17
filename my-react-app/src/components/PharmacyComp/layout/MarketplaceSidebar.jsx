@@ -1,8 +1,8 @@
 import React from 'react';
 import { FiGrid, FiBox, FiShoppingCart, FiInbox, FiTag, FiBarChart2, FiSettings, FiUser } from 'react-icons/fi';
-import styles from './PharmaBridge.module.css';
+import styles from '../styles/PharmaBridge.module.css';
 
-export default function Sidebar() {
+export default function MarketplaceSidebar() {
     return (
         <aside className={styles.sidebar}>
             <div className={styles.logoContainer}>

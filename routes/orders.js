@@ -129,7 +129,7 @@ router.get('/', verifyToken, isAuthenticated, async (req, res) => {
       return res.json(rows);
     }
 
-    // pharmacy_admin — يشوف بس طلبياته هو
+    // pharmacy_admin — طلبيات الصيدلية مع المورد والمجموع والتصنيف (للوحة والجداول)
     if (req.user.account_type === 'pharmacy_admin') {
       const [relation] = await pool.query(
         `SELECT pharmacy_id FROM pharmacy_users WHERE user_id = ?`,
@@ -139,7 +139,19 @@ router.get('/', verifyToken, isAuthenticated, async (req, res) => {
         return res.status(403).json({ message: 'Not linked to any pharmacy' });
       }
       const [rows] = await pool.query(
-        `SELECT * FROM orders WHERE pharmacy_id = ?`,
+        `SELECT o.*,
+          c.name AS company_name,
+          COALESCE((
+            SELECT SUM(oi.quantity * oi.price) FROM order_items oi WHERE oi.order_id = o.id
+          ), 0) AS total_amount,
+          (
+            SELECT p.category FROM order_items oi2
+            JOIN products p ON p.id = oi2.product_id
+            WHERE oi2.order_id = o.id LIMIT 1
+          ) AS category_sample
+         FROM orders o
+         LEFT JOIN companies c ON c.id = o.company_id
+         WHERE o.pharmacy_id = ?`,
         [relation[0].pharmacy_id]
       );
       return res.json(rows);

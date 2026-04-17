@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiShoppingCart } from 'react-icons/fi';
-import styles from './PharmaBrowsing.module.css';
+import styles from '../styles/PharmaBrowsing.module.css';
 
 export default function ProductGrid({ products }) {
     const navigate = useNavigate();
