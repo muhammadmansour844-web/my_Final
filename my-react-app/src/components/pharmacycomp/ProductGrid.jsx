@@ -1,8 +1,10 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FiShoppingCart } from 'react-icons/fi';
 import styles from './PharmaBrowsing.module.css';
 
 export default function ProductGrid() {
+    const navigate = useNavigate();
     const products = [
         {
             id: 1,
@@ -57,7 +59,12 @@ export default function ProductGrid() {
         <div className={styles.gridContainer}>
             <div className={styles.productsGrid}>
                 {products.map(p => (
-                    <div key={p.id} className={styles.productCard}>
+                    <div
+                        key={p.id}
+                        className={styles.productCard}
+                        onClick={() => navigate('/product-details')}
+                        style={{ cursor: 'pointer' }}
+                    >
                         <div className={styles.cardImageArea}>
                             {p.badge && (
                                 <div className={`${styles.cardBadge} ${styles['badge_' + p.badge.type]}`}>
@@ -90,7 +97,13 @@ export default function ProductGrid() {
                                 </div>
                             </div>
 
-                            <button className={styles.addToCartBtn}>
+                            <button
+                                className={styles.addToCartBtn}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    // Add to cart logic
+                                }}
+                            >
                                 <FiShoppingCart /> ADD TO CART
                             </button>
                         </div>
