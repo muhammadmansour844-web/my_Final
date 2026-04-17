@@ -1,7 +1,19 @@
 import React from 'react';
 import styles from './PharmaBrowsing.module.css';
 
-export default function ProductFilters() {
+export default function ProductFilters({ filters, onFilterChange }) {
+    const categoriesList = ['Cardiovascular', 'Anti-Infectives', 'Neurology', 'Endocrinology'];
+    const companiesList = ['Pfizer', 'Novartis', 'Merck & Co.'];
+    const dosagesList = ['Tablet', 'Capsule', 'Injectable', 'Syrup'];
+
+    const toggleArrayFilter = (key, item) => {
+        const current = filters[key];
+        const updated = current.includes(item)
+            ? current.filter(i => i !== item)
+            : [...current, item];
+        onFilterChange(key, updated);
+    };
+
     return (
         <div className={styles.filtersWrapper}>
             {/* Category */}
@@ -10,18 +22,15 @@ export default function ProductFilters() {
                     <h3>CATEGORY</h3>
                     <span>⌄</span>
                 </div>
-                <label className={styles.checkboxLabel}>
-                    <input type="checkbox" defaultChecked /> Cardiovascular
-                </label>
-                <label className={styles.checkboxLabel}>
-                    <input type="checkbox" /> Anti-Infectives
-                </label>
-                <label className={styles.checkboxLabel}>
-                    <input type="checkbox" /> Neurology
-                </label>
-                <label className={styles.checkboxLabel}>
-                    <input type="checkbox" /> Endocrinology
-                </label>
+                {categoriesList.map(cat => (
+                    <label key={cat} className={styles.checkboxLabel}>
+                        <input
+                            type="checkbox"
+                            checked={filters.categories.includes(cat)}
+                            onChange={() => toggleArrayFilter('categories', cat)}
+                        /> {cat}
+                    </label>
+                ))}
             </div>
 
             {/* Price Range */}
@@ -43,15 +52,15 @@ export default function ProductFilters() {
                 <div className={styles.filterHeader}>
                     <h3>MANUFACTURER</h3>
                 </div>
-                <label className={styles.checkboxLabel}>
-                    <input type="checkbox" defaultChecked /> Pfizer
-                </label>
-                <label className={styles.checkboxLabel}>
-                    <input type="checkbox" /> Novartis
-                </label>
-                <label className={styles.checkboxLabel}>
-                    <input type="checkbox" /> Merck & Co.
-                </label>
+                {companiesList.map(comp => (
+                    <label key={comp} className={styles.checkboxLabel}>
+                        <input
+                            type="checkbox"
+                            checked={filters.companies.includes(comp)}
+                            onChange={() => toggleArrayFilter('companies', comp)}
+                        /> {comp}
+                    </label>
+                ))}
             </div>
 
             {/* Availability */}
@@ -60,10 +69,28 @@ export default function ProductFilters() {
                     <h3>AVAILABILITY</h3>
                 </div>
                 <label className={styles.radioLabel}>
-                    <input type="radio" name="avail" defaultChecked /> In Stock
+                    <input
+                        type="radio"
+                        name="avail"
+                        checked={filters.availability === 'All'}
+                        onChange={() => onFilterChange('availability', 'All')}
+                    /> All
                 </label>
                 <label className={styles.radioLabel}>
-                    <input type="radio" name="avail" /> Out of Stock
+                    <input
+                        type="radio"
+                        name="avail"
+                        checked={filters.availability === 'In Stock'}
+                        onChange={() => onFilterChange('availability', 'In Stock')}
+                    /> In Stock
+                </label>
+                <label className={styles.radioLabel}>
+                    <input
+                        type="radio"
+                        name="avail"
+                        checked={filters.availability === 'Out of Stock'}
+                        onChange={() => onFilterChange('availability', 'Out of Stock')}
+                    /> Out of Stock
                 </label>
             </div>
 
@@ -73,10 +100,15 @@ export default function ProductFilters() {
                     <h3>DOSAGE FORM</h3>
                 </div>
                 <div className={styles.dosageGrid}>
-                    <button className={styles.dosageBtn}>Tablet</button>
-                    <button className={`${styles.dosageBtn} ${styles.dosageActive}`}>Capsule</button>
-                    <button className={styles.dosageBtn}>Injectable</button>
-                    <button className={styles.dosageBtn}>Syrup</button>
+                    {dosagesList.map(dos => (
+                        <button
+                            key={dos}
+                            className={`${styles.dosageBtn} ${filters.dosage === dos ? styles.dosageActive : ''}`}
+                            onClick={() => onFilterChange('dosage', filters.dosage === dos ? '' : dos)}
+                        >
+                            {dos}
+                        </button>
+                    ))}
                 </div>
             </div>
         </div>
