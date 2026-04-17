@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+:root {
+    /* Primary Colors */
+    --primary-color: hsl(161, 94%, 20%);
+    --primary-color-hover: hsl(161, 94%, 15%);
+    --primary-color-light: hsl(161, 93%, 39%);
+    --primary-color-dark: hsl(161, 94%, 10%);
+    --primary-color-transparent: hsla(161, 94%, 30%, 0.6);
+
+    /* Accent Colors (Green shades) */
+    --accent-light: hsla(152, 76%, 70%, 1);
+    --accent-medium: hsla(152, 76%, 40%, 1);
+    --accent-lighter: hsla(152, 76%, 85%, 1);
+    --accent-light-2: hsla(152, 76%, 75%, 1);
+    --accent-light-3: hsla(152, 76%, 80%, 1);
+
+    /* Blue Accent */
+    --blue-color: hsla(217, 91%, 60%, 1);
+    --blue-color-transparent: rgba(60, 131, 246, 0.85);
+
+    /* Error/Alert */
+    --error-color: hsla(0, 80%, 55%, 1);
+
+    /* Neutrals - Whites & Grays */
+    --white: hsl(0, 0%, 100%);
+    --white-transparent: rgba(255, 255, 255, 0.75);
+    --bg-light: hsla(0, 0%, 98%, 1);
+    --bg-light-2: hsla(0, 0%, 97%, 1);
+    --bg-light-3: hsla(0, 0%, 93%, 1);
+    --border-gray: hsla(0, 0%, 88%, 1);
+
+    /* Text Colors */
+    --text-dark: hsla(0, 0%, 10%, 1);
+    --text-dark-2: hsla(0, 0%, 15%, 1);
+    --text-dark-3: hsla(0, 0%, 20%, 1);
+    --text-gray: hsla(0, 0%, 35%, 1);
+    --text-muted: hsla(0, 0%, 45%, 1);
+}
+
+* {
+    font-family: 'Nunito', sans-serif;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+a {
+    text-decoration: none;
+}
+
+body {
+    background-color: hsl(0, 0%, 100%);
+}
+
+img {
+    width: 100%;
+}
+
+::selection {
+    background-color: hsl(161, 93%, 39%);
+    color: hsl(0, 0%, 100%);
+}

@@ -1,0 +1,429 @@
+/* header start */
+.header {
+    height: 70px;
+    width: 100%;
+    background-color: var(--primary-color);
+    display: flex;
+    justify-content: space-evenly;
+    align-items: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+.header h1 {
+    font-weight: 700;
+    letter-spacing: 1px;
+    font-size: 1.4rem;
+    color: var(--white);
+    transition: all 0.3s ease;
+}
+.header h1:hover {
+    color: var(--accent-light);
+    transform: scale(1.02);
+}
+.header img {
+    width: 100px;
+    height: auto;
+    transition: all 0.3s ease;
+}
+.header img:hover {
+    width: 110px;
+}
+
+.header .loginPage {
+    padding: 8px 20px;
+    background-color: var(--bg-light);
+    color: var(--primary-color);
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+}
+.header .loginPage:hover {
+    background-color: var(--accent-light);
+    color: var(--primary-color-dark);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+}
+/* header end */
+
+/* home start */
+.homeContainer {
+  display: flex;
+  flex-direction: row;
+  min-height: 450px;
+  background: linear-gradient(135deg, var(--primary-color-dark) 0%, var(--primary-color) 100%);
+  padding: 4rem 8%;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Soft background glow */
+.homeContainer::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -20%;
+  width: 80vw;
+  height: 80vw;
+  background: radial-gradient(circle, var(--accent-medium) 0%, transparent 60%);
+  opacity: 0.2;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.homePlatform {
+  display: flex;
+  flex-direction: column;
+  max-width: 50%;
+  z-index: 1;
+}
+
+.homePlatform h6 {
+  letter-spacing: 2px;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--accent-light);
+  text-transform: uppercase;
+  margin-bottom: 15px;
+}
+
+.firstLine {
+  font-size: 3.2rem;
+  font-weight: 800;
+  color: var(--white);
+  line-height: 1.1;
+}
+
+.secondLine {
+  font-size: 3.2rem;
+  font-weight: 800;
+  color: var(--accent-light);
+  line-height: 1.1;
+  margin-bottom: 1.5rem;
+  text-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.homePlatform p {
+  color: var(--white-transparent);
+  font-size: 1.15rem;
+  line-height: 1.6;
+  max-width: 90%;
+}
+
+.homeImage {
+  width: 35%;
+  background: rgba(255, 255, 255, 0.08); /* Premium glassmorphism */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 1.5rem 1.5rem 2rem 1.5rem;
+  border-radius: 20px;
+  text-align: center;
+  transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: 1;
+  box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+}
+
+.homeImage img {
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  transition: all 0.5s ease;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.homeImage h6 {
+  color: var(--white);
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin-top: 25px;
+  letter-spacing: 0.5px;
+}
+
+.homeImage p {
+  color: var(--white-transparent);
+  font-size: 0.95rem;
+  margin-top: 8px;
+  line-height: 1.4;
+}
+
+.homeImage:hover {
+  transform: translateY(-12px) scale(1.02);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 25px 50px rgba(0,0,0,0.25), 0 0 30px rgba(152, 76, 178, 0.05); /* very soft color glow */
+}
+
+.homeImage:hover img {
+  transform: scale(1.03);
+}
+/* home end */
+
+/* cards start */
+.cardsSection {
+  padding: 5rem 5%;
+  background: var(--bg-light);
+  text-align: center;
+}
+
+.cardsSectionTitle {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--text-dark);
+  margin-bottom: 3rem;
+}
+
+.cardsContainer {
+  display: flex;
+  gap: 2rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 4rem;
+}
+
+.cardsItem {
+  background: var(--white);
+  border: 1px solid var(--border-gray);
+  border-radius: 16px;
+  padding: 2.5rem 1.5rem;
+  flex: 1;
+  min-width: 200px;
+  max-width: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  transition: all 0.3s ease;
+}
+
+.cardsItem:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.06);
+  border-color: var(--accent-light-2);
+}
+
+.cardsIcon {
+  font-size: 2rem;
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  transition: all 0.3s ease;
+}
+
+.cardsItem:hover .cardsIcon {
+  transform: scale(1.1);
+}
+
+/* Beautiful soft colors for icons */
+.cardsIconGreen { background: rgba(46, 204, 113, 0.15); color: #2ecc71; }
+.cardsIconBlue  { background: rgba(52, 152, 219, 0.15); color: #3498db; }
+.cardsIconAmber { background: rgba(241, 196, 15, 0.15); color: #f1c40f; }
+.cardsIconPink  { background: rgba(233, 30, 99, 0.15); color: #e91e63; }
+
+.cardsItemTitle {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin: 0;
+}
+
+.cardsItemText {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.cardsSides {
+  display: flex;
+  gap: 2rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.cardsSideItem {
+  flex: 1;
+  min-width: 280px;
+  max-width: 450px;
+  border-radius: 16px;
+  padding: 2.5rem 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+  transition: all 0.3s ease;
+  background: var(--white);
+  border: 1px solid var(--border-gray);
+}
+
+.cardsSideItem:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.05);
+  border-color: var(--accent-light);
+}
+
+.cardsSideGreen {
+  background: linear-gradient(to bottom, rgba(46, 204, 113, 0.05), rgba(46, 204, 113, 0));
+}
+
+.cardsSideBlue {
+  background: linear-gradient(to bottom, rgba(52, 152, 219, 0.05), rgba(52, 152, 219, 0));
+}
+
+.cardsSideTitle {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin: 0;
+}
+
+.cardsSideText {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+/* cards end */
+
+/* footer start */
+.footerContainer {
+  background: var(--primary-color-dark);
+  padding: 4rem 5%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.8rem;
+}
+
+.footerText {
+  font-size: 1.2rem;
+  color: var(--white);
+  line-height: 1.8;
+  margin: 0;
+  font-weight: 300;
+}
+
+.footerSpan {
+  color: var(--accent-light);
+  font-weight: 600;
+}
+
+.footerIcons {
+  display: flex;
+  gap: 1.2rem;
+}
+
+.footerIcon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--white);
+  transition: all 0.3s ease;
+  font-size: 1.1rem;
+}
+
+.footerIcon:hover {
+  background: var(--accent-medium);
+  border-color: var(--accent-light);
+  transform: translateY(-4px);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.footerCopy {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.4);
+  margin-top: 1rem;
+}
+/* footer end */
+
+/* =========================================
+   TAILWIND-INSPIRED RESPONSIVE BREAKPOINTS
+   (Added as requested at the very end)
+   ========================================= */
+
+@media (max-width: 1024px) {
+  .homeContainer {
+    padding: 3rem 5%;
+  }
+  .firstLine, .secondLine {
+    font-size: 2.5rem;
+  }
+  .homePlatform p {
+    font-size: 1rem;
+  }
+  .homeImage {
+    width: 45%;
+  }
+}
+
+@media (max-width: 768px) {
+  .header {
+    flex-direction: column;
+    height: auto;
+    padding: 1rem 0;
+    gap: 1rem;
+  }
+  
+  .homeContainer {
+    flex-direction: column;
+    text-align: center;
+    padding: 3rem 5%;
+    gap: 3rem;
+  }
+  
+  .homePlatform {
+    max-width: 100%;
+    align-items: center;
+  }
+  
+  .homePlatform p {
+    max-width: 100%;
+  }
+  
+  .homeImage {
+    width: 80%;
+    max-width: 350px;
+  }
+  
+  .firstLine, .secondLine {
+    font-size: 2rem;
+  }
+  
+  .cardsSectionTitle {
+    font-size: 1.8rem;
+  }
+  
+  .footerContainer {
+    padding: 3rem 5%;
+  }
+  .footerIcons {
+    gap: 0.8rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .homeImage {
+    width: 100%;
+  }
+  .firstLine, .secondLine {
+    font-size: 1.8rem;
+  }
+  .cardsSideItem {
+    padding: 1.5rem;
+    min-width: 100%;
+  }
+}
