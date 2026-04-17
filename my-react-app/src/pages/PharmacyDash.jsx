@@ -20,6 +20,7 @@ const tabTitles = {
 function PharmacyDash() {
   const [activeTab, setActiveTab] = useState('catalog')
   const [selectedProductId, setSelectedProductId] = useState(null) // null = catalog list, number = detail page
+
   const [cartItems, setCartItems] = useState([])
   const [cartId, setCartId] = useState(null)
   const [checkoutLoading, setCheckoutLoading] = useState(false)
@@ -147,9 +148,7 @@ function PharmacyDash() {
     }
   }
 
-  const current = selectedProductId
-    ? tabTitles.product
-    : (tabTitles[activeTab] || tabTitles.catalog)
+  const current = tabTitles[activeTab] || tabTitles.catalog
 
   return (
     <div className={styles.dashLayout}>
@@ -164,8 +163,8 @@ function PharmacyDash() {
         />
 
         <div className={styles.dashContent}>
-          {/* Stats - only show in catalog list view */}
-          {activeTab === 'catalog' && !selectedProductId && (
+          {/* Stats */}
+          {activeTab === 'catalog' && (
             <div className={styles.statsGrid}>
               <StatsCard title="Cart Items" value={cartItems.length} icon="🛒" color="blue" />
               <StatsCard
@@ -177,26 +176,7 @@ function PharmacyDash() {
             </div>
           )}
 
-          {/* Product Detail View */}
-          {activeTab === 'catalog' && selectedProductId && (
-            <div style={{ margin: '-2rem -2.5rem' }}>
-              <ProductDetailPage
-                productId={selectedProductId}
-                onBack={() => setSelectedProductId(null)}
-                onAddToCart={handleAddToCart}
-                onProductSelect={(id) => setSelectedProductId(id)}
-              />
-            </div>
-          )}
-
-          {/* Catalog Grid View */}
-          {activeTab === 'catalog' && !selectedProductId && (
-            <ProductCatalog
-              onAddToCart={handleAddToCart}
-              onProductClick={(id) => setSelectedProductId(id)}
-            />
-          )}
-
+          {activeTab === 'catalog' && <ProductCatalog onAddToCart={handleAddToCart} />}
           {activeTab === 'cart' && (
             <CartPanel
               cartItems={cartItems}
