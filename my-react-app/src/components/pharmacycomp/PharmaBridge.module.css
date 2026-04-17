@@ -1,0 +1,522 @@
+.layout {
+    display: flex;
+    height: 100vh;
+    background-color: #f9fafb;
+    font-family: 'Inter', sans-serif;
+    color: #374151;
+}
+
+/* Sidebar */
+.sidebar {
+    width: 260px;
+    background-color: #115e3b;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+}
+
+.logoContainer {
+    padding: 24px;
+}
+
+.logo {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+}
+
+.subtitle {
+    font-size: 10px;
+    color: #86efac;
+    letter-spacing: 1px;
+}
+
+.nav {
+    display: flex;
+    flex-direction: column;
+    padding: 0 16px;
+    gap: 4px;
+    flex: 1;
+}
+
+.navLink {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    color: #a7f3d0;
+    background: none;
+    border: none;
+    font-size: 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+}
+
+.navLink:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.navLink.active {
+    background-color: #15803d;
+    color: #fff;
+    font-weight: 600;
+}
+
+.profile {
+    padding: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    cursor: pointer;
+}
+
+/* Main Area */
+.main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.header {
+    height: 72px;
+    background-color: #fff;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 32px;
+}
+
+.searchBar {
+    display: flex;
+    align-items: center;
+    background-color: #f3f4f6;
+    border-radius: 8px;
+    padding: 8px 16px;
+    width: 400px;
+}
+
+.searchIcon {
+    color: #9ca3af;
+    margin-right: 8px;
+}
+
+.searchInput {
+    border: none;
+    background: transparent;
+    outline: none;
+    width: 100%;
+    font-size: 14px;
+}
+
+.headerRight {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.iconBtn {
+    background: none;
+    border: none;
+    color: #6b7280;
+    font-size: 20px;
+    cursor: pointer;
+    position: relative;
+}
+
+.badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 8px;
+    height: 8px;
+    background-color: #ef4444;
+    border-radius: 50%;
+}
+
+/* Content */
+.content {
+    padding: 32px;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.breadcrumb {
+    font-size: 12px;
+    color: #6b7280;
+    margin-bottom: 24px;
+    letter-spacing: 0.5px;
+}
+
+.breadcrumb strong {
+    color: #115e3b;
+    font-weight: 600;
+}
+
+/* Product Hero */
+.heroSection {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    margin-bottom: 48px;
+}
+
+.imageGallery {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.mainImage {
+    background-color: #1f2937;
+    border-radius: 12px;
+    overflow: hidden;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.imagePlaceholder {
+    color: #fff;
+    opacity: 0.5;
+}
+
+.thumbnails {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+
+.thumbPlaceholder {
+    aspect-ratio: 1;
+    border-radius: 8px;
+    background-color: #e5e7eb;
+    border: 2px solid transparent;
+    cursor: pointer;
+}
+
+.activeThumb {
+    border-color: #10b981;
+}
+
+.productInfo {
+    display: flex;
+    flex-direction: column;
+}
+
+.categoryChip {
+    display: inline-block;
+    background-color: #d1fae5;
+    color: #059669;
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    width: fit-content;
+}
+
+.title {
+    font-size: 32px;
+    font-weight: 700;
+    color: #111827;
+    margin: 0 0 16px 0;
+    line-height: 1.2;
+}
+
+.meta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 14px;
+    color: #4b5563;
+    margin-bottom: 24px;
+}
+
+.manufacturer {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
+}
+
+.verified {
+    color: #10b981;
+}
+
+.sku {
+    color: #9ca3af;
+}
+
+.pricing {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.currentPrice {
+    font-size: 36px;
+    font-weight: 700;
+    color: #115e3b;
+}
+
+.oldPrice {
+    font-size: 18px;
+    color: #9ca3af;
+    text-decoration: line-through;
+}
+
+.discountBadge {
+    background-color: #991b1b;
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.b2bNote {
+    font-size: 13px;
+    color: #6b7280;
+    line-height: 1.5;
+    margin-bottom: 32px;
+}
+
+.qtyLabel {
+    font-size: 12px;
+    font-weight: 600;
+    color: #6b7280;
+    margin-bottom: 8px;
+}
+
+.qtyControls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.qtyInputGroup {
+    display: flex;
+    align-items: center;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+}
+
+.qtyInputGroup button {
+    background: none;
+    border: none;
+    padding: 8px 16px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.qtyInputGroup input {
+    width: 48px;
+    text-align: center;
+    border: none;
+    font-weight: 600;
+    font-size: 16px;
+    outline: none;
+}
+
+.stockInfo {
+    font-size: 14px;
+    color: #4b5563;
+}
+
+.addToCartBtn {
+    background-color: #115e3b;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 16px;
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    margin-bottom: 24px;
+}
+
+.trustBadges {
+    display: flex;
+    gap: 16px;
+}
+
+.trustBadge {
+    flex: 1;
+    background-color: #f3f4f6;
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #374151;
+}
+
+/* Tabs */
+.tabsSection {
+    margin-bottom: 48px;
+}
+
+.tabHeaders {
+    display: flex;
+    gap: 32px;
+    border-bottom: 1px solid #e5e7eb;
+    margin-bottom: 24px;
+}
+
+.tabBtn {
+    background: none;
+    border: none;
+    padding: 12px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #6b7280;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+}
+
+.activeTab {
+    color: #115e3b;
+    border-bottom-color: #115e3b;
+}
+
+.tabContent p {
+    color: #4b5563;
+    line-height: 1.7;
+    margin-bottom: 16px;
+    font-size: 15px;
+}
+
+.infoCards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-top: 32px;
+}
+
+.infoCard {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.infoCard h4 {
+    font-size: 12px;
+    color: #059669;
+    margin: 0 0 8px 0;
+}
+
+.infoCard p {
+    margin: 0;
+    font-weight: 600;
+    color: #111827;
+}
+
+/* Related */
+.relatedSection {
+    margin-top: 48px;
+}
+
+.relatedHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 24px;
+}
+
+.relatedHeader h2 {
+    font-size: 24px;
+    color: #111827;
+    margin: 0 0 8px 0;
+}
+
+.relatedHeader p {
+    color: #6b7280;
+    margin: 0;
+    font-size: 14px;
+}
+
+.viewAll {
+    color: #10b981;
+    border: none;
+    background: none;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.relatedGrid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+}
+
+.relatedCard {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.relatedImgPlaceholder {
+    height: 200px;
+    background-color: #f3f4f6;
+}
+
+.relatedInfo {
+    padding: 16px;
+}
+
+.relatedCat {
+    font-size: 11px;
+    font-weight: 700;
+    color: #059669;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    display: block;
+}
+
+.relatedName {
+    font-size: 15px;
+    color: #111827;
+    margin: 0 0 16px 0;
+    font-weight: 600;
+}
+
+.relatedBottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.relatedPrice {
+    font-weight: 700;
+    color: #111827;
+}
+
+.relatedCartBtn {
+    background: none;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 6px;
+    color: #9ca3af;
+    cursor: pointer;
+}
