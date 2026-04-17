@@ -5,7 +5,7 @@ import StatsCard from '../components/Dashescomp/StatsCard'
 import ProductCatalog from '../components/pharmacycomp/ProductCatalog'
 import CartPanel from '../components/pharmacycomp/CartPanel'
 import PharmacyOrders from '../components/pharmacycomp/PharmacyOrders'
-import ProductDetailPage from '../components/pharmacycomp/ProductDetailPage'
+import ProductDetailLayout from '../components/pharmacycomp/ProductDetailLayout'
 import styles from '../components/Dashescomp/Dashes.module.css'
 
 const API_CARTS = 'http://localhost:3000/api/carts'
@@ -176,7 +176,18 @@ function PharmacyDash() {
             </div>
           )}
 
-          {activeTab === 'catalog' && <ProductCatalog onAddToCart={handleAddToCart} />}
+          {activeTab === 'catalog' && !selectedProductId && <ProductCatalog onAddToCart={handleAddToCart} onSelectProduct={setSelectedProductId} />}
+          {/* Product Detail View */}
+          {activeTab === 'catalog' && selectedProductId && (
+            <div style={{ margin: '-2rem -2.5rem' }}>
+              <ProductDetailLayout
+                productId={selectedProductId}
+                onBack={() => setSelectedProductId(null)}
+                onAddToCart={handleAddToCart}
+                onProductSelect={(id) => setSelectedProductId(id)}
+              />
+            </div>
+          )}
           {activeTab === 'cart' && (
             <CartPanel
               cartItems={cartItems}

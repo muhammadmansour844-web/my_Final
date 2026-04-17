@@ -4,6 +4,8 @@ import LoginPage from './pages/LoginPage'
 import AdminDash from './pages/AdminDash'
 import CompanyDash from './pages/CompanyDash'
 import PharmacyDash from './pages/PharmacyDash'
+import ProductDetailLayout from './components/pharmacycomp/ProductDetailLayout'
+import ProductBrowsingLayout from './components/pharmacycomp/ProductBrowsingLayout'
 
 function App() {
   return (
@@ -14,6 +16,8 @@ function App() {
         <Route path="/admin" element={<AdminDash />} />
         <Route path="/company" element={<CompanyDash />} />
         <Route path="/pharmacy-dashboard" element={<PharmacyDash />} />
+        <Route path="/product-details" element={<ProductDetailLayout />} />
+        <Route path="/product-browsing" element={<ProductBrowsingLayout />} />
       </Routes>
     
   )
