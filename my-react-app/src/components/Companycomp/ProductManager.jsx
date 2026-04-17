@@ -16,7 +16,7 @@ function ProductManager() {
   const [form, setForm] = useState({
     name: '', category: '', manufacturer: '', description: '',
     price: '', stock_quantity: '', has_expiry: 0, expiry_date: '',
-    discount_percentage: 0
+    discount_percentage: 0, image_url: ''
   })
 
   const token = localStorage.getItem('token')
@@ -49,7 +49,7 @@ function ProductManager() {
     setForm({
       name: '', category: '', manufacturer: '', description: '',
       price: '', stock_quantity: '', has_expiry: 0, expiry_date: '',
-      discount_percentage: 0
+      discount_percentage: 0, image_url: ''
     })
     setShowModal(true)
   }
@@ -65,7 +65,8 @@ function ProductManager() {
       stock_quantity: product.stock_quantity,
       has_expiry: product.has_expiry || 0,
       expiry_date: product.expiry_date ? product.expiry_date.split('T')[0] : '',
-      discount_percentage: product.discount_percentage || 0
+      discount_percentage: product.discount_percentage || 0,
+      image_url: product.image_url || ''
     })
     setShowModal(true)
   }
@@ -180,6 +181,10 @@ function ProductManager() {
           <div className={styles.formGroup}>
             <label className={styles.formLabel}>Product Name</label>
             <input className={styles.formInput} placeholder="e.g. Paracetamol 500mg" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+          </div>
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel}>Product Image (URL)</label>
+            <input className={styles.formInput} placeholder="https://example.com/image.jpg" value={form.image_url} onChange={e => setForm({ ...form, image_url: e.target.value })} />
           </div>
           <div className={styles.formRow}>
             <div className={styles.formGroup}>
