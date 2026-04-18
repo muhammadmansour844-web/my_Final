@@ -19,6 +19,17 @@ function ProductManager() {
     discount_percentage: 0, image_url: ''
   })
 
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setForm(prev => ({ ...prev, image_url: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const token = localStorage.getItem('token')
   const headers = {
     'Content-Type': 'application/json',
@@ -183,8 +194,13 @@ function ProductManager() {
             <input className={styles.formInput} placeholder="e.g. Paracetamol 500mg" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
           </div>
           <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Product Image (URL)</label>
-            <input className={styles.formInput} placeholder="https://example.com/image.jpg" value={form.image_url} onChange={e => setForm({ ...form, image_url: e.target.value })} />
+            <label className={styles.formLabel}>Product Image (Desktop)</label>
+            <input type="file" accept="image/*" className={styles.formInput} onChange={handleImageUpload} />
+            {form.image_url && (
+              <div style={{marginTop: '10px'}}>
+                <img src={form.image_url} alt="Preview" style={{maxHeight: '60px', borderRadius: '6px', border: '1px solid #ddd'}} />
+              </div>
+            )}
           </div>
           <div className={styles.formRow}>
             <div className={styles.formGroup}>

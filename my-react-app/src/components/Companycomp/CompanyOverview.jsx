@@ -2,7 +2,7 @@ import React from 'react'
 import { FiZap, FiPackage, FiAlertTriangle, FiDollarSign, FiPlus, FiCheckCircle, FiXCircle } from 'react-icons/fi'
 import styles from './Company.module.css'
 
-function CompanyOverview({ onAddProduct }) {
+function CompanyOverview({ onAddProduct, onViewOrders }) {
   const incomingOrders = [
     { client: "St. Jude Medical Center", dept: "Oncology Ward - Dept 4", id: "#PB-9921-A", priority: "STAT", priorityClass: styles.badgeStat },
     { client: "BioLab Therapeutics", dept: "R&D Lab 12", id: "#PB-8840-X", priority: "STANDARD", priorityClass: styles.badgeStandard },
@@ -70,7 +70,7 @@ function CompanyOverview({ onAddProduct }) {
           <div className={styles.tableCard}>
             <div className={styles.tableHeaderRow}>
               <h2 className={styles.tableTitle}>Incoming Orders</h2>
-              <a href="#view-all" className={styles.viewHistory}>VIEW ALL HISTORY</a>
+              <span onClick={onViewOrders} className={styles.viewHistory} style={{cursor: 'pointer'}}>VIEW ALL HISTORY</span>
             </div>
 
             <table className={styles.orderTable}>
@@ -102,8 +102,8 @@ function CompanyOverview({ onAddProduct }) {
                     </td>
                     <td>
                       <div className={styles.rowActions}>
-                        <FiCheckCircle className={styles.actionAccept} />
-                        <FiXCircle className={styles.actionReject} />
+                        <FiCheckCircle className={styles.actionAccept} onClick={() => alert('Order accepted (Testing)')} />
+                        <FiXCircle className={styles.actionReject} onClick={() => alert('Order rejected (Testing)')} />
                       </div>
                     </td>
                   </tr>
@@ -127,7 +127,7 @@ function CompanyOverview({ onAddProduct }) {
                   </div>
                   <div className={styles.critBar}></div>
                   <div className={styles.critBottom}>
-                    <div className={styles.critActionBtn}>{item.action}</div>
+                    <button className={styles.critActionBtn} style={{border: 'none', cursor: 'pointer'}} onClick={() => alert(`${item.action} triggered!`)}>{item.action}</button>
                     {item.eta ? (
                       <div className={styles.critEta}>Refill ETA: {item.eta}</div>
                     ) : (
@@ -137,7 +137,7 @@ function CompanyOverview({ onAddProduct }) {
                 </div>
               ))}
             </div>
-            <button className={styles.restockBtn}>
+            <button className={styles.restockBtn} onClick={() => alert('Opening Restock Dashboard... (Testing)')}>
               ⟳ RESTOCK DASHBOARD
             </button>
           </div>
@@ -145,8 +145,8 @@ function CompanyOverview({ onAddProduct }) {
           <div className={styles.marketPulse}>
             <div className={styles.pulseLabel}>MARKET PULSE</div>
             <div className={styles.pulseDesc}>Vaccine supply stabilizing in Q4. Plan orders.</div>
-            <div className={styles.pulseLink}>Read full report ›</div>
-            <button className={styles.pulseFloatBtn}><FiPlus /></button>
+            <div className={styles.pulseLink} onClick={() => alert('Loading report...')}>Read full report ›</div>
+            <button className={styles.pulseFloatBtn} onClick={() => alert('Creating new promotion...')}><FiPlus /></button>
           </div>
         </div>
       </div>

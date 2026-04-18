@@ -92,6 +92,16 @@ function LoginRight() {
         </button>
 
         <a href="/" className={styles.loginBack}>← Back to home</a>
+
+        {/* Temporary Quick Links for Testing */}
+        <div style={{ marginTop: '2rem', padding: '1rem', borderTop: '1px solid #eee', textAlign: 'center' }}>
+          <p style={{ fontSize: '0.8rem', color: '#888', marginBottom: '10px' }}>🧪 Quick Testing (No Auth Required)</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
+            <button onClick={() => navigate('/company')} style={{ background: '#f0f4f2', border: '1px solid #d1e2d9', borderRadius: '4px', padding: '4px 8px', fontSize: '0.75rem', cursor: 'pointer', color: '#0b2e20' }}>Company Dash</button>
+            <button onClick={() => navigate('/pharmacy-dashboard')} style={{ background: '#f0f4f2', border: '1px solid #d1e2d9', borderRadius: '4px', padding: '4px 8px', fontSize: '0.75rem', cursor: 'pointer', color: '#0b2e20' }}>Pharmacy Dash</button>
+            <button onClick={() => navigate('/admin')} style={{ background: '#f0f4f2', border: '1px solid #d1e2d9', borderRadius: '4px', padding: '4px 8px', fontSize: '0.75rem', cursor: 'pointer', color: '#0b2e20' }}>Admin Dash</button>
+          </div>
+        </div>
       </div>
     </div>
   )

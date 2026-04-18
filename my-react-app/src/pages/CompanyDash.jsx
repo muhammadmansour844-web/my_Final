@@ -34,7 +34,10 @@ function CompanyDash() {
         />
 
         <div className={styles.dashContent}>
-          {activeTab === 'dashboard' && <CompanyOverview onAddProduct={() => setActiveTab('my_products')} />}
+          {activeTab === 'dashboard' && <CompanyOverview 
+            onAddProduct={() => setActiveTab('my_products')} 
+            onViewOrders={() => setActiveTab('incoming_orders')} 
+          />}
           {(activeTab === 'products' || activeTab === 'my_products') && <ProductManager />}
           {(activeTab === 'orders' || activeTab === 'incoming_orders' || activeTab === 'my_orders') && <CompanyOrders />}
           {['promotions', 'reports', 'settings'].includes(activeTab) && (
