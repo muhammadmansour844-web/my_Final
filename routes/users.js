@@ -84,6 +84,50 @@ router.post('/register', verifyToken, isSuperAdmin, async (req, res) => {
   }
 });
 
+// تسجيل طلب حساب جديد — مفتوح للعموم، يحتاج موافقة الأدمن
+router.post('/public-register', async (req, res) => {
+  try {
+    const { name, email, password, account_type, phone, entity_name } = req.body;
+
+    if (!name || !email || !password || !account_type || !phone || !entity_name) {
+      return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    if (!['company_admin', 'pharmacy_admin'].includes(account_type)) {
+      return res.status(400).json({ message: 'Invalid account type' });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: 'Invalid email format' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    const [existing] = await pool.query(`SELECT id FROM users WHERE email = ?`, [email]);
+    if (existing.length > 0) {
+      return res.status(409).json({ message: 'Email already registered' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // is_active=0 يعني الحساب معلق حتى يوافق الأدمن
+    await pool.query(
+      `INSERT INTO users (name, email, password, account_type, phone, entity_name, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, 0)`,
+      [name, email, hashedPassword, account_type, phone, entity_name]
+    );
+
+    res.status(201).json({
+      message: 'Registration request submitted successfully. Our team will review your application and contact you within 24-48 hours.'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // تسجيل الدخول — مفتوح للكل بدون حراس
 router.post('/login', async (req, res) => {
   try {
