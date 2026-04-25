@@ -6,22 +6,31 @@ import styles from './Dashes.module.css'
 // Sidebar configuration per role
 const sidebarConfig = {
   super_admin: {
-    title: 'Admin Panel',
-    subtitle: 'System Control',
+    title: 'PharmaBridge',
+    subtitle: 'ADMIN PANEL',
     icon: '🛡️',
     sections: [
       {
-        label: 'Management',
+        label: 'Main',
         links: [
+          { id: 'overview', label: 'Overview', icon: '🎛️' },
           { id: 'users', label: 'Users', icon: '👥' },
-          { id: 'companies', label: 'Companies', icon: '🏢' },
-          { id: 'pharmacies', label: 'Pharmacies', icon: '💊' },
         ]
       },
       {
-        label: 'Monitoring',
+        label: 'Catalog',
         links: [
-          { id: 'orders', label: 'All Orders', icon: '📦' },
+          { id: 'companies', label: 'Companies', icon: '🏢' },
+          { id: 'pharmacies', label: 'Pharmacies', icon: '💊' },
+          { id: 'products', label: 'All Products', icon: '🧪' },
+        ]
+      },
+      {
+        label: 'Operations',
+        links: [
+          { id: 'orders', label: 'Orders', icon: '📦' },
+          { id: 'finance', label: 'Finance', icon: '💰' },
+          { id: 'system', label: 'System', icon: '⚙️' },
         ]
       }
     ]
@@ -34,13 +43,12 @@ const sidebarConfig = {
       {
         label: 'Main',
         links: [
-          { id: 'dashboard', label: 'Dashboard', icon: '🎛️' },
-          { id: 'products', label: 'Products', icon: '📦' },
           { id: 'my_orders', label: 'My Orders', icon: '🛒' },
           { id: 'incoming_orders', label: 'Incoming Orders', icon: '📥' },
           { id: 'my_products', label: 'My Products', icon: '💊' },
           { id: 'promotions', label: 'Promotions', icon: '📢' },
           { id: 'reports', label: 'Reports', icon: '📊' },
+          { id: 'dashboard', label: 'Dashboard', icon: '🎛️' },
           { id: 'settings', label: 'Settings', icon: '⚙️' },
         ]
       }
@@ -73,8 +81,7 @@ function Sidebar({ role, activeTab, onTabChange }) {
   const config = sidebarConfig[role] || sidebarConfig.super_admin
 
   const handleLogout = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('account_type')
+    localStorage.clear()
     navigate('/login')
   }
 
