@@ -4,6 +4,11 @@ const jwt = require('jsonwebtoken');
 
 const router = express.Router();
 
+// Add missing columns (silently ignored if they already exist)
+pool.query(`ALTER TABLE orders ADD COLUMN notes TEXT`).catch(() => {});
+pool.query(`ALTER TABLE orders ADD COLUMN shipped_at DATETIME`).catch(() => {});
+pool.query(`ALTER TABLE orders ADD COLUMN delivered_at DATETIME`).catch(() => {});
+
 // ===== Middleware =====
 
 const verifyToken = (req, res, next) => {
@@ -107,9 +112,22 @@ router.post('/', verifyToken, isAuthenticated, async (req, res) => {
 // جلب كل الطلبيات — حسب الصلاحية
 router.get('/', verifyToken, isAuthenticated, async (req, res) => {
   try {
-    // super_admin — يشوف كل شي
+    // super_admin — يشوف كل شي مع اسم الصيدلية والشركة والمجموع
     if (req.user.account_type === 'super_admin') {
-      const [rows] = await pool.query(`SELECT * FROM orders`);
+      const [rows] = await pool.query(
+        `SELECT o.*,
+          ph.name AS pharmacy_name,
+          c.name  AS company_name,
+          COALESCE((
+            SELECT SUM(oi.quantity * oi.price) FROM order_items oi WHERE oi.order_id = o.id
+          ), 0) AS total_amount,
+          (
+            SELECT COUNT(*) FROM order_items oi2 WHERE oi2.order_id = o.id
+          ) AS items_count
+         FROM orders o
+         LEFT JOIN pharmacies ph ON ph.id = o.pharmacy_id
+         LEFT JOIN companies  c  ON c.id  = o.company_id`
+      );
       return res.json(rows);
     }
 
@@ -123,7 +141,14 @@ router.get('/', verifyToken, isAuthenticated, async (req, res) => {
         return res.status(403).json({ message: 'Not linked to any company' });
       }
       const [rows] = await pool.query(
-        `SELECT * FROM orders WHERE company_id = ?`,
+        `SELECT o.*,
+          ph.name AS pharmacy_name,
+          COALESCE((
+            SELECT SUM(oi.quantity * oi.price) FROM order_items oi WHERE oi.order_id = o.id
+          ), 0) AS total_amount
+         FROM orders o
+         LEFT JOIN pharmacies ph ON ph.id = o.pharmacy_id
+         WHERE o.company_id = ?`,
         [relation[0].company_id]
       );
       return res.json(rows);
@@ -167,14 +192,22 @@ router.get('/:id', verifyToken, isAuthenticated, async (req, res) => {
     const { id } = req.params;
 
     const [rows] = await pool.query(
-      `SELECT o.*, 
+      `SELECT o.*,
+              ph.name  AS pharmacy_name,
+              ph.phone AS pharmacy_phone,
+              ph.email AS pharmacy_email,
+              c.name   AS company_name,
               JSON_ARRAYAGG(JSON_OBJECT(
-                'product_id', oi.product_id,
-                'quantity', oi.quantity,
-                'price', oi.price
+                'product_id',   oi.product_id,
+                'product_name', p.name,
+                'quantity',     oi.quantity,
+                'price',        oi.price
               )) as items
        FROM orders o
        JOIN order_items oi ON o.id = oi.order_id
+       JOIN products p ON p.id = oi.product_id
+       LEFT JOIN pharmacies ph ON ph.id = o.pharmacy_id
+       LEFT JOIN companies  c  ON c.id  = o.company_id
        WHERE o.id = ?
        GROUP BY o.id`,
       [id]
@@ -217,7 +250,7 @@ router.get('/:id', verifyToken, isAuthenticated, async (req, res) => {
 router.put('/:id', verifyToken, isAuthenticated, async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, notes } = req.body;
 
     // تحقق إنه الطلبية موجودة
     const [existing] = await pool.query(
@@ -231,19 +264,20 @@ router.put('/:id', verifyToken, isAuthenticated, async (req, res) => {
 
     // تحديد مين بيقدر يغير لأي حالة
     const allowedTransitions = {
-      // الشركة بتوافق أو ترفض أو تبعت
+      // الشركة بتوافق أو ترفض أو تشحن أو تلغي
       company_admin: {
         pending: ['approved', 'rejected'],
-        approved: ['shipped']
+        approved: ['shipped', 'cancelled']
       },
-      // الصيدلية بتأكد الاستلام بس
+      // الصيدلية بتلغي طلباتها المعلقة وبتأكد الاستلام
       pharmacy_admin: {
+        pending: ['cancelled'],
         shipped: ['delivered']
       },
       // الأدمن يغير أي حالة
       super_admin: {
-        pending: ['approved', 'rejected'],
-        approved: ['shipped', 'rejected'],
+        pending: ['approved', 'rejected', 'cancelled'],
+        approved: ['shipped', 'rejected', 'cancelled'],
         shipped: ['delivered']
       }
     };
@@ -280,10 +314,10 @@ router.put('/:id', verifyToken, isAuthenticated, async (req, res) => {
       }
     }
 
-    // حدّث الحالة
+    // حدّث الحالة والملاحظات
     await pool.query(
-      `UPDATE orders SET status = ? WHERE id = ?`,
-      [status, id]
+      `UPDATE orders SET status = ?, notes = COALESCE(?, notes) WHERE id = ?`,
+      [status, notes || null, id]
     );
 
     // لو shipped — حدّث shipped_at
@@ -298,6 +332,19 @@ router.put('/:id', verifyToken, isAuthenticated, async (req, res) => {
       await pool.query(
         `UPDATE orders SET delivered_at = NOW() WHERE id = ?`, [id]
       );
+    }
+
+    // لو cancelled أو rejected — رجّع الكمية للمخزون
+    if (status === 'cancelled' || status === 'rejected') {
+      const [orderItems] = await pool.query(
+        `SELECT product_id, quantity FROM order_items WHERE order_id = ?`, [id]
+      );
+      for (const item of orderItems) {
+        await pool.query(
+          `UPDATE products SET stock_quantity = stock_quantity + ? WHERE id = ?`,
+          [item.quantity, item.product_id]
+        );
+      }
     }
 
     res.json({ message: `Order status updated to ${status}` });
