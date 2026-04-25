@@ -17,14 +17,12 @@ import {
 import shell from '../styles/PharmaDashboardShell.module.css'
 
 const NAV = [
-  { id: 'dashboard', label: 'Dashboard', Icon: FiGrid },
   { id: 'products', label: 'Products', Icon: FiPackage },
   { id: 'cart', label: 'Cart', Icon: FiShoppingCart },
   { id: 'my_orders', label: 'My Orders', Icon: FiShoppingBag },
-  { id: 'incoming_orders', label: 'Incoming Orders', Icon: FiTruck },
-  { id: 'my_products', label: 'My Products', Icon: FiLayers },
   { id: 'promotions', label: 'Promotions', Icon: FiTag },
   { id: 'reports', label: 'Reports', Icon: FiBarChart2 },
+  { id: 'dashboard', label: 'Dashboard', Icon: FiGrid },
   { id: 'settings', label: 'Settings', Icon: FiSettings },
 ]
 
@@ -37,9 +35,7 @@ function PharmaBridgeSidebar({ activeTab, onTabChange, mobileOpen, onCloseMobile
   }
 
   const logout = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('account_type')
-    localStorage.removeItem('user_name')
+    localStorage.clear()
     navigate('/login')
   }
 
