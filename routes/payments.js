@@ -82,7 +82,7 @@ router.post('/', verifyToken, isAuthenticated, async (req, res) => {
     // ===== التحقق التلقائي من المبلغ =====
     const orderTotal = parseFloat(order.total_amount);
     const paidAmount = parseFloat(amount);
-    const paymentStatus = paidAmount === orderTotal ? 'paid' : 'failed';
+    const paymentStatus = Math.abs(paidAmount - orderTotal) < 0.01 ? 'paid' : 'failed';
 
     // سجل الدفعة
     const [result] = await pool.query(
