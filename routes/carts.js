@@ -176,11 +176,11 @@ router.get('/:cartId/items', verifyToken, isPharmacy, async (req, res) => {
     }
 
     const [rows] = await pool.query(
-      `SELECT ci.id, ci.quantity, ci.price,
-              p.name, p.stock_quantity,
+      `SELECT ci.id, ci.product_id, ci.quantity, ci.price,
+              p.name, p.image_url, p.stock_quantity,
               (ci.quantity * ci.price) as subtotal
-       FROM cart_items ci 
-       JOIN products p ON ci.product_id = p.id 
+       FROM cart_items ci
+       JOIN products p ON ci.product_id = p.id
        WHERE ci.cart_id = ?`,
       [cartId]
     );
@@ -238,15 +238,10 @@ router.delete('/:cartId/items', verifyToken, isPharmacy, async (req, res) => {
   }
 });
 
-// Checkout — تحويل السلة لطلبية
+// Checkout — تحويل السلة لطلبية (company_id مكتشف تلقائياً من المنتجات)
 router.post('/:cartId/checkout', verifyToken, isPharmacy, async (req, res) => {
   try {
     const { cartId } = req.params;
-    const { company_id } = req.body;
-
-    if (!company_id) {
-      return res.status(400).json({ message: 'company_id is required' });
-    }
 
     // تحقق إنه السلة تبع الصيدلية
     const isOwner = await verifyCartOwnership(cartId, req.user.id);
@@ -254,10 +249,10 @@ router.post('/:cartId/checkout', verifyToken, isPharmacy, async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    // جيب محتويات السلة
+    // جيب محتويات السلة مع company_id لكل منتج
     const [items] = await pool.query(
       `SELECT ci.product_id, ci.quantity, ci.price,
-              p.stock_quantity
+              p.stock_quantity, p.company_id
        FROM cart_items ci
        JOIN products p ON ci.product_id = p.id
        WHERE ci.cart_id = ?`,
@@ -274,38 +269,50 @@ router.post('/:cartId/checkout', verifyToken, isPharmacy, async (req, res) => {
     );
     const pharmacyId = relation[0].pharmacy_id;
 
-    // إنشاء الطلبية
-    const [order] = await pool.query(
-      `INSERT INTO orders (pharmacy_id, company_id, status) VALUES (?, ?, 'pending')`,
-      [pharmacyId, company_id]
-    );
-
-    const orderId = order.insertId;
-
-    // نقل المنتجات من السلة للطلبية + تخفيض المخزون
+    // جمّع المنتجات حسب الشركة — طلبية منفصلة لكل شركة
+    const byCompany = {};
     for (const item of items) {
-      // أضف للطلبية
-      await pool.query(
-        `INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)`,
-        [orderId, item.product_id, item.quantity, item.price]
-      );
-
-      // خفّض المخزون
-      await pool.query(
-        `UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?`,
-        [item.quantity, item.product_id]
-      );
+      if (!byCompany[item.company_id]) byCompany[item.company_id] = [];
+      byCompany[item.company_id].push(item);
     }
 
-    // فضّي السلة وغيّر حالتها
-    await pool.query(`DELETE FROM cart_items WHERE cart_id = ?`, [cartId]);
-    await pool.query(
-      `UPDATE carts SET status = 'ordered' WHERE id = ?`, [cartId]
-    );
+    const conn = await pool.getConnection();
+    await conn.beginTransaction();
+    const orderIds = [];
+    try {
+      for (const [company_id, companyItems] of Object.entries(byCompany)) {
+        const [order] = await conn.query(
+          `INSERT INTO orders (pharmacy_id, company_id, status) VALUES (?, ?, 'pending')`,
+          [pharmacyId, company_id]
+        );
+        const orderId = order.insertId;
+        orderIds.push(orderId);
 
-    res.status(201).json({ 
-      message: 'Order created successfully', 
-      orderId 
+        for (const item of companyItems) {
+          await conn.query(
+            `INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)`,
+            [orderId, item.product_id, item.quantity, item.price]
+          );
+          await conn.query(
+            `UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?`,
+            [item.quantity, item.product_id]
+          );
+        }
+      }
+
+      await conn.query(`DELETE FROM cart_items WHERE cart_id = ?`, [cartId]);
+      await conn.query(`UPDATE carts SET status = 'ordered' WHERE id = ?`, [cartId]);
+      await conn.commit();
+    } catch (txErr) {
+      await conn.rollback();
+      conn.release();
+      return res.status(500).json({ error: txErr.message });
+    }
+    conn.release();
+
+    res.status(201).json({
+      message: 'Order created successfully',
+      orderIds
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
