@@ -15,7 +15,8 @@ const paymentRoutes = require('./routes/payments');
 const app = express();
 
 // ميدل وير
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '10mb' }));
+app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cors());
 
 // ربط الراوترات مع الامتداد الصحيح
