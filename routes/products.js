@@ -28,7 +28,7 @@ const isSuperAdmin = (req, res, next) => {
 
 const isCompanyAdmin = (req, res, next) => {
   if (!['super_admin', 'company_admin'].includes(req.user.account_type)) {
-    return res.status(403).json({ message: 'Access denied' });
+    return res.status(403).json({ message: `Access denied: your account type (${req.user.account_type}) cannot manage products. Please log out and log in with a company admin account.` });
   }
   next();
 };
@@ -46,26 +46,27 @@ const isAuthenticated = (req, res, next) => {
 // إضافة منتج — super_admin أو company_admin (بس لشركته هو)
 router.post('/', verifyToken, isCompanyAdmin, async (req, res) => {
   try {
-    const { 
-      company_id, name, category, manufacturer, 
-      description, price, stock_quantity, 
-      has_expiry, expiry_date, discount_percentage 
+    let {
+      company_id, name, category, manufacturer,
+      description, price, stock_quantity,
+      has_expiry, expiry_date, discount_percentage
     } = req.body;
+
+    // لو company_admin — جيب company_id تلقائياً من قاعدة البيانات (مش من الطلب)
+    if (req.user.account_type === 'company_admin') {
+      const [relation] = await pool.query(
+        `SELECT company_id FROM company_users WHERE user_id = ?`,
+        [req.user.id]
+      );
+      if (relation.length === 0) {
+        return res.status(403).json({ message: 'Not linked to any company' });
+      }
+      company_id = relation[0].company_id;
+    }
 
     // Validation
     if (!company_id || !name || !price || !stock_quantity) {
       return res.status(400).json({ message: 'company_id, name, price, stock_quantity are required' });
-    }
-
-    // لو company_admin — تحقق إنه بيضيف لشركته هو بس
-    if (req.user.account_type === 'company_admin') {
-      const [relation] = await pool.query(
-        `SELECT company_id FROM company_users WHERE user_id = ? AND company_id = ?`,
-        [req.user.id, company_id]
-      );
-      if (relation.length === 0) {
-        return res.status(403).json({ message: 'Access denied' });
-      }
     }
 
     // تحقق إنه الشركة موجودة
@@ -76,11 +77,12 @@ router.post('/', verifyToken, isCompanyAdmin, async (req, res) => {
       return res.status(404).json({ message: 'Company not found' });
     }
 
+    const { image_url, promotion_end_date } = req.body;
     const [result] = await pool.query(
-      `INSERT INTO products 
-       (company_id, name, category, manufacturer, description, price, stock_quantity, has_expiry, expiry_date, discount_percentage, created_at, updated_at) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-      [company_id, name, category, manufacturer, description, price, stock_quantity, has_expiry, expiry_date || null, discount_percentage || 0]
+      `INSERT INTO products
+       (company_id, name, category, manufacturer, description, price, stock_quantity, has_expiry, expiry_date, discount_percentage, image_url, promotion_end_date, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+      [company_id, name, category, manufacturer, description, price, stock_quantity, has_expiry, expiry_date || null, discount_percentage || 0, image_url || null, promotion_end_date || null]
     );
 
     res.status(201).json({ 
@@ -169,21 +171,21 @@ router.put('/:id', verifyToken, isCompanyAdmin, async (req, res) => {
 
     // لو company_admin — تحقق إنه المنتج تابع لشركته
     if (req.user.account_type === 'company_admin') {
-      const [relation] = await pool.query(
-        `SELECT company_id FROM company_users WHERE user_id = ? AND company_id = ?`,
-        [req.user.id, existing[0].company_id]
+      const [userCompany] = await pool.query(
+        `SELECT company_id FROM company_users WHERE user_id = ?`, [req.user.id]
       );
-      if (relation.length === 0) {
+      if (userCompany.length === 0 || Number(userCompany[0].company_id) !== Number(existing[0].company_id)) {
         return res.status(403).json({ message: 'Access denied' });
       }
     }
 
+    const { image_url, promotion_end_date } = req.body;
     await pool.query(
-      `UPDATE products 
-       SET name=?, category=?, manufacturer=?, description=?, price=?, 
-           stock_quantity=?, has_expiry=?, expiry_date=?, discount_percentage=?, updated_at=NOW() 
+      `UPDATE products
+       SET name=?, category=?, manufacturer=?, description=?, price=?,
+           stock_quantity=?, has_expiry=?, expiry_date=?, discount_percentage=?, image_url=?, promotion_end_date=?, updated_at=NOW()
        WHERE id=?`,
-      [name, category, manufacturer, description, price, stock_quantity, has_expiry, expiry_date || null, discount_percentage || 0, id]
+      [name, category, manufacturer, description, price, stock_quantity, has_expiry, expiry_date || null, discount_percentage || 0, image_url || null, promotion_end_date || null, id]
     );
 
     res.json({ message: 'Product updated successfully' });
@@ -207,13 +209,20 @@ router.delete('/:id', verifyToken, isCompanyAdmin, async (req, res) => {
 
     // لو company_admin — تحقق إنه المنتج تابع لشركته
     if (req.user.account_type === 'company_admin') {
-      const [relation] = await pool.query(
-        `SELECT company_id FROM company_users WHERE user_id = ? AND company_id = ?`,
-        [req.user.id, existing[0].company_id]
+      const [userCompany] = await pool.query(
+        `SELECT company_id FROM company_users WHERE user_id = ?`, [req.user.id]
       );
-      if (relation.length === 0) {
+      if (userCompany.length === 0 || Number(userCompany[0].company_id) !== Number(existing[0].company_id)) {
         return res.status(403).json({ message: 'Access denied' });
       }
+    }
+
+    // تحقق لو المنتج مرتبط بطلبيات — امنع الحذف لحفظ السجل
+    const [linkedOrders] = await pool.query(
+      `SELECT COUNT(*) as cnt FROM order_items WHERE product_id = ?`, [id]
+    );
+    if (linkedOrders[0].cnt > 0) {
+      return res.status(400).json({ message: 'Cannot delete: product has associated orders. Consider setting stock to 0 instead.' });
     }
 
     await pool.query(`DELETE FROM products WHERE id=?`, [id]);
