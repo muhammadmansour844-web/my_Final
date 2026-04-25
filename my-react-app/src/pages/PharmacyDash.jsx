@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import PharmaBridgeSidebar from '../components/PharmacyComp/layout/PharmaBridgeSidebar'
 import PharmaBridgeHeader from '../components/PharmacyComp/layout/PharmaBridgeHeader'
 import PharmaDashboardHome from '../components/PharmacyComp/dashboard/PharmaDashboardHome'
 import ProductCatalog from '../components/PharmacyComp/products/ProductCatalog'
+import Promotions from '../components/PharmacyComp/products/Promotions'
 import CartPanel from '../components/PharmacyComp/cart/CartPanel'
 import PharmacyOrders from '../components/PharmacyComp/orders/PharmacyOrders'
 import shell from '../components/PharmacyComp/styles/PharmaDashboardShell.module.css'
@@ -23,7 +25,9 @@ const tabMeta = {
 }
 
 function PharmacyDash() {
-  const [activeTab, setActiveTab] = useState('dashboard')
+  const location = useLocation()
+  const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState(location.state?.tab || 'products')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const [cartItems, setCartItems] = useState([])
@@ -76,6 +80,9 @@ function PharmacyDash() {
           const data = await res.json()
           setCartId(data.cartId)
           await addItemToCart(data.cartId, product)
+        } else {
+          const data = await res.json()
+          showToast(data.message || 'Failed to create cart', 'error')
         }
       } catch {
         showToast('Failed to create cart', 'error')
@@ -111,9 +118,7 @@ function PharmacyDash() {
         const data = await res.json()
         setCartItems(data.items || [])
       }
-    } catch {
-      /* ignore */
-    }
+    } catch { /* ignore */ }
   }
 
   const handleRemoveItem = async (item) => {
@@ -131,44 +136,49 @@ function PharmacyDash() {
     }
   }
 
-  const handleCheckout = async () => {
-    if (!cartId || cartItems.length === 0) return
-    setCheckoutLoading(true)
+  const handleUpdateQty = async (item, newQty) => {
+    if (newQty < 1) return
     try {
-      const res = await fetch(`${API_CARTS}/${cartId}/checkout`, {
+      const delRes = await fetch(`${API_CARTS}/${cartId}/items/${item.id}`, {
+        method: 'DELETE',
+        headers,
+      })
+      if (!delRes.ok) {
+        showToast('Failed to update quantity', 'error')
+        return
+      }
+      const addRes = await fetch(`${API_CARTS}/${cartId}/items`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ company_id: 1 }),
+        body: JSON.stringify({ product_id: item.product_id || item.id, quantity: newQty }),
       })
-      if (res.ok) {
-        showToast('Order placed successfully!')
-        setCartItems([])
-        setCartId(null)
-        setActiveTab('my_orders')
+      if (addRes.ok) {
+        refreshCartItems()
       } else {
-        const data = await res.json()
-        showToast(data.message || 'Checkout failed', 'error')
+        const data = await addRes.json()
+        showToast(data.message || 'Failed to update quantity', 'error')
+        refreshCartItems()
       }
     } catch {
       showToast('Network error', 'error')
-    } finally {
-      setCheckoutLoading(false)
     }
+  }
+
+  const handleCheckout = () => {
+    if (!cartId || cartItems.length === 0) return
+    navigate('/payment', { state: { cartItems, cartId } })
   }
 
   const current = tabMeta[activeTab] || tabMeta.dashboard
 
-  const goTab = (id) => {
-    setActiveTab(id)
-  }
+  const goTab = (id) => setActiveTab(id)
 
-  const pageIntro =
-    activeTab !== 'dashboard' ? (
-      <div className={shell.pbPageBar}>
-        <h1>{current.title}</h1>
-        <p>{current.breadcrumb}</p>
-      </div>
-    ) : null
+  const pageIntro = activeTab !== 'dashboard' ? (
+    <div className={shell.pbPageBar}>
+      <h1>{current.title}</h1>
+      <p>{current.breadcrumb}</p>
+    </div>
+  ) : null
 
   return (
     <div className={shell.pbLayout}>
@@ -214,6 +224,7 @@ function PharmacyDash() {
                 <CartPanel
                   cartItems={cartItems}
                   cartId={cartId}
+                  onUpdateQty={handleUpdateQty}
                   onRemove={handleRemoveItem}
                   onCheckout={handleCheckout}
                   loading={checkoutLoading}
@@ -226,78 +237,24 @@ function PharmacyDash() {
               {activeTab === 'my_products' && (
                 <div className={shell.pbPlaceholder}>
                   <h2>My Products</h2>
-                  <p>
-                    Pharmacy inventory will appear here when linked to stock APIs. Use{' '}
-                    <strong>Products</strong> to order from the catalog.
-                  </p>
+                  <p>Pharmacy inventory will appear here. Use <strong>Products</strong> to order from the catalog.</p>
                 </div>
               )}
 
-              {activeTab === 'promotions' && (
-                <div className={shell.pbPromoGrid}>
-                  <div className={shell.pbPromoCard}>
-                    <div className={shell.pbPromoImg} aria-hidden>
-                      💊
-                    </div>
-                    <div className={shell.pbPromoBody}>
-                      <span className={`${shell.pbDealTag} ${shell.pbTagDeal}`}>−25% OFF</span>
-                      <h3 className={shell.pbPromoName}>Seasonal Antibiotics Pack</h3>
-                      <button type="button" className={shell.pbPromoLink} onClick={() => goTab('products')}>
-                        View catalog
-                      </button>
-                    </div>
-                  </div>
-                  <div className={shell.pbPromoCard}>
-                    <div className={shell.pbPromoImg} aria-hidden>
-                      💉
-                    </div>
-                    <div className={shell.pbPromoBody}>
-                      <span className={`${shell.pbDealTag} ${shell.pbTagLim}`}>LIMITED</span>
-                      <h3 className={shell.pbPromoName}>New Vaccine Batch</h3>
-                      <button type="button" className={shell.pbPromoLink} onClick={() => goTab('products')}>
-                        View catalog
-                      </button>
-                    </div>
-                  </div>
-                  <div className={shell.pbPromoCard}>
-                    <div className={shell.pbPromoImg} aria-hidden>
-                      🩺
-                    </div>
-                    <div className={shell.pbPromoBody}>
-                      <span className={`${shell.pbDealTag} ${shell.pbTagBundle}`}>BUNDLED</span>
-                      <h3 className={shell.pbPromoName}>Clinical Hardware</h3>
-                      <button type="button" className={shell.pbPromoLink} onClick={() => goTab('products')}>
-                        View Offer
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
+              {activeTab === 'promotions' && <Promotions onAddToCart={handleAddToCart} />}
 
               {activeTab === 'reports' && (
                 <div className={shell.pbPlaceholder} style={{ maxWidth: '100%' }}>
                   <h2>Reports</h2>
-                  <p>Order volume and spend charts can plug in here when analytics endpoints are ready.</p>
-                  <div
-                    style={{
-                      marginTop: '1.25rem',
-                      height: 120,
-                      borderRadius: 12,
-                      background: 'linear-gradient(90deg, #f1f5f9, #e2e8f0, #f1f5f9)',
-                    }}
-                    aria-hidden
-                  />
+                  <p>Order volume and spend charts will appear here.</p>
+                  <div style={{ marginTop: '1.25rem', height: 120, borderRadius: 12, background: 'linear-gradient(90deg, #f1f5f9, #e2e8f0, #f1f5f9)' }} aria-hidden />
                 </div>
               )}
 
               {activeTab === 'settings' && (
                 <div className={shell.pbPlaceholder} style={{ maxWidth: '100%' }}>
                   <h2>Settings</h2>
-                  <p>Profile and notifications. Optional: set display name in localStorage key </p>
-                  <code style={{ fontSize: '0.85rem' }}>pharmacy_display_name</code>
-                  <p style={{ marginTop: '1rem' }}>
-                    Signed in as <strong>{userName}</strong>
-                  </p>
+                  <p>Signed in as <strong>{userName}</strong></p>
                 </div>
               )}
             </>
