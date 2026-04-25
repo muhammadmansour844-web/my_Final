@@ -16,19 +16,17 @@ function ProductManager() {
   const [form, setForm] = useState({
     name: '', category: '', manufacturer: '', description: '',
     price: '', stock_quantity: '', has_expiry: 0, expiry_date: '',
-    discount_percentage: 0, image_url: ''
+    discount_percentage: 0, image_url: '', promotion_end_date: ''
   })
 
   const handleImageUpload = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files[0]
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setForm(prev => ({ ...prev, image_url: reader.result }));
-      };
-      reader.readAsDataURL(file);
+      const reader = new FileReader()
+      reader.onloadend = () => setForm(prev => ({ ...prev, image_url: reader.result }))
+      reader.readAsDataURL(file)
     }
-  };
+  }
 
   const token = localStorage.getItem('token')
   const headers = {
@@ -55,13 +53,15 @@ function ProductManager() {
 
   useEffect(() => { fetchProducts() }, [])
 
+  const emptyForm = {
+    name: '', category: '', manufacturer: '', description: '',
+    price: '', stock_quantity: '', has_expiry: 0, expiry_date: '',
+    discount_percentage: 0, image_url: '', promotion_end_date: ''
+  }
+
   const openAdd = () => {
     setEditing(null)
-    setForm({
-      name: '', category: '', manufacturer: '', description: '',
-      price: '', stock_quantity: '', has_expiry: 0, expiry_date: '',
-      discount_percentage: 0, image_url: ''
-    })
+    setForm(emptyForm)
     setShowModal(true)
   }
 
@@ -77,7 +77,8 @@ function ProductManager() {
       has_expiry: product.has_expiry || 0,
       expiry_date: product.expiry_date ? product.expiry_date.split('T')[0] : '',
       discount_percentage: product.discount_percentage || 0,
-      image_url: product.image_url || ''
+      image_url: product.image_url || '',
+      promotion_end_date: product.promotion_end_date ? product.promotion_end_date.substring(0, 16) : ''
     })
     setShowModal(true)
   }
@@ -85,33 +86,17 @@ function ProductManager() {
   const handleSubmit = async () => {
     setSaving(true)
     try {
-      let body = { ...form }
-      if (editing) {
-        const res = await fetch(`${API_PRODUCTS}/${editing.id}`, {
-          method: 'PUT', headers, body: JSON.stringify(body)
-        })
-        if (res.ok) {
-          showToast('Product updated')
-          fetchProducts()
-          setShowModal(false)
-        } else {
-          const data = await res.json()
-          showToast(data.message || 'Update failed', 'error')
-        }
+      const body = { ...form }
+      const url = editing ? `${API_PRODUCTS}/${editing.id}` : API_PRODUCTS
+      const method = editing ? 'PUT' : 'POST'
+      const res = await fetch(url, { method, headers, body: JSON.stringify(body) })
+      if (res.ok) {
+        showToast(editing ? 'Product updated' : 'Product created')
+        fetchProducts()
+        setShowModal(false)
       } else {
-        // For new product, we need company_id — the backend validates via token
-        body.company_id = 1 // Will be validated server-side
-        const res = await fetch(API_PRODUCTS, {
-          method: 'POST', headers, body: JSON.stringify(body)
-        })
-        if (res.ok) {
-          showToast('Product created')
-          fetchProducts()
-          setShowModal(false)
-        } else {
-          const data = await res.json()
-          showToast(data.message || 'Creation failed', 'error')
-        }
+        const data = await res.json()
+        showToast(data.message || (editing ? 'Update failed' : 'Creation failed'), 'error')
       }
     } catch {
       showToast('Network error', 'error')
@@ -150,11 +135,9 @@ function ProductManager() {
     },
     {
       key: 'discount_percentage', label: 'Discount',
-      render: (val) => val > 0 ? (
-        <span className={`${styles.badge} ${styles.badgeRed}`}>-{val}%</span>
-      ) : (
-        <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>—</span>
-      )
+      render: (val) => val > 0
+        ? <span className={`${styles.badge} ${styles.badgeRed}`}>-{val}%</span>
+        : <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>—</span>
     },
     {
       key: 'expiry_date', label: 'Expiry',
@@ -194,11 +177,11 @@ function ProductManager() {
             <input className={styles.formInput} placeholder="e.g. Paracetamol 500mg" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
           </div>
           <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Product Image (Desktop)</label>
+            <label className={styles.formLabel}>Product Image</label>
             <input type="file" accept="image/*" className={styles.formInput} onChange={handleImageUpload} />
             {form.image_url && (
-              <div style={{marginTop: '10px'}}>
-                <img src={form.image_url} alt="Preview" style={{maxHeight: '60px', borderRadius: '6px', border: '1px solid #ddd'}} />
+              <div style={{ marginTop: '10px' }}>
+                <img src={form.image_url} alt="Preview" style={{ maxHeight: '60px', borderRadius: '6px', border: '1px solid #ddd' }} />
               </div>
             )}
           </div>
@@ -235,6 +218,13 @@ function ProductManager() {
               <label className={styles.formLabel}>Expiry Date</label>
               <input className={styles.formInput} type="date" value={form.expiry_date} onChange={e => setForm({ ...form, expiry_date: e.target.value, has_expiry: e.target.value ? 1 : 0 })} />
             </div>
+          </div>
+          <div className={styles.formRow}>
+            <div className={styles.formGroup}>
+              <label className={styles.formLabel}>Promotion End Date/Time</label>
+              <input className={styles.formInput} type="datetime-local" value={form.promotion_end_date} onChange={e => setForm({ ...form, promotion_end_date: e.target.value })} />
+            </div>
+            <div></div>
           </div>
         </Modal>
       )}
