@@ -159,20 +159,39 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
+    // جيب اسم الصيدلية أو الشركة المرتبطة باليوزر
+    let entity_name = null;
+    let entity_id = null;
+    if (user.account_type === 'pharmacy_admin') {
+      const [rel] = await pool.query(
+        `SELECT ph.id, ph.name FROM pharmacy_users pu JOIN pharmacies ph ON ph.id = pu.pharmacy_id WHERE pu.user_id = ? LIMIT 1`,
+        [user.id]
+      );
+      if (rel.length > 0) { entity_name = rel[0].name; entity_id = rel[0].id; }
+    } else if (user.account_type === 'company_admin') {
+      const [rel] = await pool.query(
+        `SELECT c.id, c.name FROM company_users cu JOIN companies c ON c.id = cu.company_id WHERE cu.user_id = ? LIMIT 1`,
+        [user.id]
+      );
+      if (rel.length > 0) { entity_name = rel[0].name; entity_id = rel[0].id; }
+    }
+
     // كل شي تمام — اعمل توكن صالح لـ 8 ساعات
     const token = jwt.sign(
-      { id: user.id, account_type: user.account_type }, // البيانات اللي داخل التوكن
-      process.env.JWT_SECRET, // المفتاح السري من ملف .env
-      { expiresIn: '8h' } // التوكن بينتهي بعد 8 ساعات
+      { id: user.id, account_type: user.account_type },
+      process.env.JWT_SECRET,
+      { expiresIn: '8h' }
     );
 
-    res.json({ 
-      message: 'Login successful', 
-      token, // ابعت التوكن للفرونت عشان يحفظه ويبعته مع كل طلب
+    res.json({
+      message: 'Login successful',
+      token,
       user: {
         id: user.id,
         name: user.name,
-        account_type: user.account_type // مهم للفرونت عشان يعرف يوجهك لأي داشبورد
+        account_type: user.account_type,
+        entity_name,
+        entity_id,
       }
     });
   } catch (error) {
