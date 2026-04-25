@@ -18,8 +18,9 @@ const tabTitles = {
 }
 
 function CompanyDash() {
-  const [activeTab, setActiveTab] = useState('dashboard')
+  const [activeTab, setActiveTab] = useState('my_orders')
   const current = tabTitles[activeTab] || tabTitles.dashboard
+  const userName = localStorage.getItem('user_name') || 'Company'
 
   return (
     <div className={styles.dashLayout}>
@@ -30,7 +31,7 @@ function CompanyDash() {
           title={current.title}
           breadcrumb={current.breadcrumb}
           role="company_admin"
-          userName="Company"
+          userName={userName}
         />
 
         <div className={styles.dashContent}>
