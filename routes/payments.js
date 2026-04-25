@@ -86,9 +86,9 @@ router.post('/', verifyToken, isAuthenticated, async (req, res) => {
 
     // سجل الدفعة
     const [result] = await pool.query(
-      `INSERT INTO payments (order_id, payment_method, payment_status, amount) 
-       VALUES (?, ?, ?, ?)`,
-      [order_id, payment_method, paymentStatus, paidAmount]
+      `INSERT INTO payments (order_id, payment_method, payment_status, amount, paid_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [order_id, payment_method, paymentStatus, paidAmount, paymentStatus === 'paid' ? new Date() : null]
     );
 
     // لو الدفع نجح — حدّث حالة الطلبية تلقائياً
@@ -164,6 +164,30 @@ router.get('/', verifyToken, isAuthenticated, async (req, res) => {
   }
 });
 
+// جلب ملخص الحساب بين شركة وصيدلية
+router.get('/summary/:pharmacyId/:companyId', verifyToken, isAuthenticated, async (req, res) => {
+  try {
+    const { pharmacyId, companyId } = req.params;
+
+    const [rows] = await pool.query(
+      `SELECT
+        COUNT(p.id) as total_invoices,
+        SUM(p.amount) as total_paid,
+        SUM(CASE WHEN p.payment_status = 'paid' THEN p.amount ELSE 0 END) as paid_amount,
+        SUM(CASE WHEN p.payment_status = 'pending' THEN p.amount ELSE 0 END) as pending_amount,
+        SUM(CASE WHEN p.payment_status = 'failed' THEN p.amount ELSE 0 END) as failed_amount
+       FROM payments p
+       JOIN orders o ON p.order_id = o.id
+       WHERE o.pharmacy_id = ? AND o.company_id = ?`,
+      [pharmacyId, companyId]
+    );
+
+    res.json(rows[0]);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // جلب دفعة واحدة
 router.get('/:id', verifyToken, isAuthenticated, async (req, res) => {
   try {
@@ -205,30 +229,6 @@ router.get('/:id', verifyToken, isAuthenticated, async (req, res) => {
     }
 
     res.json(payment);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// جلب ملخص الحساب بين شركة وصيدلية
-router.get('/summary/:pharmacyId/:companyId', verifyToken, isAuthenticated, async (req, res) => {
-  try {
-    const { pharmacyId, companyId } = req.params;
-
-    const [rows] = await pool.query(
-      `SELECT 
-        COUNT(p.id) as total_invoices,
-        SUM(p.amount) as total_paid,
-        SUM(CASE WHEN p.payment_status = 'paid' THEN p.amount ELSE 0 END) as paid_amount,
-        SUM(CASE WHEN p.payment_status = 'pending' THEN p.amount ELSE 0 END) as pending_amount,
-        SUM(CASE WHEN p.payment_status = 'failed' THEN p.amount ELSE 0 END) as failed_amount
-       FROM payments p
-       JOIN orders o ON p.order_id = o.id
-       WHERE o.pharmacy_id = ? AND o.company_id = ?`,
-      [pharmacyId, companyId]
-    );
-
-    res.json(rows[0]);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
