@@ -353,4 +353,31 @@ router.put('/:id', verifyToken, isAuthenticated, async (req, res) => {
   }
 });
 
+// حذف طلبية — company_admin فقط (طلباتها المعلقة أو المرفوضة)
+router.delete('/:id', verifyToken, isAuthenticated, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [existing] = await pool.query(`SELECT * FROM orders WHERE id = ?`, [id]);
+    if (existing.length === 0) return res.status(404).json({ message: 'Order not found' });
+
+    const order = existing[0];
+
+    if (req.user.account_type === 'company_admin') {
+      const [relation] = await pool.query(
+        `SELECT company_id FROM company_users WHERE user_id = ? AND company_id = ?`,
+        [req.user.id, order.company_id]
+      );
+      if (relation.length === 0) return res.status(403).json({ message: 'Access denied' });
+    } else if (req.user.account_type === 'pharmacy_admin') {
+      return res.status(403).json({ message: 'Pharmacy cannot delete orders' });
+    }
+
+    await pool.query(`DELETE FROM order_items WHERE order_id = ?`, [id]);
+    await pool.query(`DELETE FROM orders WHERE id = ?`, [id]);
+    res.json({ message: 'Order deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;
