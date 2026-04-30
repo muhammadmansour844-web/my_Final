@@ -4,7 +4,6 @@ import PharmaBridgeSidebar from '../components/PharmacyComp/layout/PharmaBridgeS
 import PharmaBridgeHeader from '../components/PharmacyComp/layout/PharmaBridgeHeader'
 import PharmaDashboardHome from '../components/PharmacyComp/dashboard/PharmaDashboardHome'
 import ProductCatalog from '../components/PharmacyComp/products/ProductCatalog'
-import Promotions from '../components/PharmacyComp/products/Promotions'
 import CartPanel from '../components/PharmacyComp/cart/CartPanel'
 import PharmacyOrders from '../components/PharmacyComp/orders/PharmacyOrders'
 import shell from '../components/PharmacyComp/styles/PharmaDashboardShell.module.css'
@@ -19,7 +18,6 @@ const tabMeta = {
   my_orders: { title: 'My Orders', breadcrumb: 'PharmaBridge → Orders' },
   incoming_orders: { title: 'Incoming Orders', breadcrumb: 'PharmaBridge → Incoming' },
   my_products: { title: 'My Products', breadcrumb: 'PharmaBridge → Inventory' },
-  promotions: { title: 'Promotions', breadcrumb: 'PharmaBridge → Promotions' },
   reports: { title: 'Reports', breadcrumb: 'PharmaBridge → Reports' },
   settings: { title: 'Settings', breadcrumb: 'PharmaBridge → Settings' },
 }
@@ -73,41 +71,60 @@ function PharmacyDash() {
   }, [])
 
   const handleAddToCart = async (product) => {
-    if (!cartId) {
+    // Always get a fresh active cart — avoids stale cartId after checkout
+    let activeCartId = null
+    try {
+      const res = await fetch(API_CARTS, { headers })
+      if (res.ok) {
+        const carts = await res.json()
+        const activeCart = carts.find((c) => c.status === 'active')
+        if (activeCart) {
+          activeCartId = activeCart.id
+          setCartId(activeCartId)
+        }
+      }
+    } catch { /* network error handled below */ }
+
+    if (!activeCartId) {
       try {
         const res = await fetch(API_CARTS, { method: 'POST', headers })
         if (res.ok) {
           const data = await res.json()
-          setCartId(data.cartId)
-          await addItemToCart(data.cartId, product)
+          activeCartId = data.cartId
+          setCartId(activeCartId)
         } else {
           const data = await res.json()
           showToast(data.message || 'Failed to create cart', 'error')
+          return
         }
       } catch {
         showToast('Failed to create cart', 'error')
+        return
       }
-    } else {
-      await addItemToCart(cartId, product)
     }
+
+    await addItemToCart(activeCartId, product)
   }
 
   const addItemToCart = async (cId, product) => {
     try {
+      console.log('[Cart] Adding item:', { cartId: cId, productId: product.id })
       const res = await fetch(`${API_CARTS}/${cId}/items`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ product_id: product.id, quantity: 1 }),
       })
+      const data = await res.json()
+      console.log('[Cart] Response:', res.status, data)
       if (res.ok) {
         showToast(`${product.name} added to cart!`)
         refreshCartItems(cId)
       } else {
-        const data = await res.json()
-        showToast(data.message || 'Failed to add', 'error')
+        showToast(data.message || 'Failed to add item', 'error')
       }
-    } catch {
-      showToast('Network error', 'error')
+    } catch (err) {
+      console.error('[Cart] Network error:', err)
+      showToast('Network error — check server connection', 'error')
     }
   }
 
@@ -138,29 +155,27 @@ function PharmacyDash() {
 
   const handleUpdateQty = async (item, newQty) => {
     if (newQty < 1) return
+
+    // Optimistically update UI
+    const prevItems = [...cartItems]
+    setCartItems(prev => prev.map(i => i.id === item.id ? { ...i, quantity: newQty } : i))
+
     try {
-      const delRes = await fetch(`${API_CARTS}/${cartId}/items/${item.id}`, {
-        method: 'DELETE',
+      const res = await fetch(`${API_CARTS}/${cartId}/items/${item.id}`, {
+        method: 'PUT',
         headers,
+        body: JSON.stringify({ quantity: newQty }),
       })
-      if (!delRes.ok) {
-        showToast('Failed to update quantity', 'error')
-        return
-      }
-      const addRes = await fetch(`${API_CARTS}/${cartId}/items`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ product_id: item.product_id || item.id, quantity: newQty }),
-      })
-      if (addRes.ok) {
-        refreshCartItems()
-      } else {
-        const data = await addRes.json()
+      if (!res.ok) {
+        const data = await res.json()
         showToast(data.message || 'Failed to update quantity', 'error')
+        setCartItems(prevItems)
+      } else {
         refreshCartItems()
       }
     } catch {
       showToast('Network error', 'error')
+      setCartItems(prevItems)
     }
   }
 
@@ -195,9 +210,10 @@ function PharmacyDash() {
         onTabChange={goTab}
         mobileOpen={mobileMenuOpen}
         onCloseMobile={() => setMobileMenuOpen(false)}
+        forceCollapse={activeTab === 'products'}
       />
 
-      <div className={shell.pbMain}>
+      <div className={`${shell.pbMain}${activeTab === 'products' ? ` ${shell.pbMainCollapsed}` : ''}`}>
         <PharmaBridgeHeader
           onMenuClick={() => setMobileMenuOpen((o) => !o)}
           pharmacyName={pharmacyDisplayName}
@@ -240,8 +256,6 @@ function PharmacyDash() {
                   <p>Pharmacy inventory will appear here. Use <strong>Products</strong> to order from the catalog.</p>
                 </div>
               )}
-
-              {activeTab === 'promotions' && <Promotions onAddToCart={handleAddToCart} />}
 
               {activeTab === 'reports' && (
                 <div className={shell.pbPlaceholder} style={{ maxWidth: '100%' }}>
