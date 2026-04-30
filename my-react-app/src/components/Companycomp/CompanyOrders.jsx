@@ -68,9 +68,12 @@ function CompanyOrders() {
 
   const updateStatus = async (id, status) => {
     try {
+      console.log('[CompanyOrders] updateStatus →', { id, status, notes: notes.trim() })
       const res = await fetch(`${API}/${id}`, {
         method: 'PUT', headers, body: JSON.stringify({ status, notes: notes.trim() || null })
       })
+      const data = await res.json()
+      console.log('[CompanyOrders] response →', res.status, data)
       if (res.ok) {
         showToast(`Order #${id} → ${status}`)
         setViewOrder(null)
@@ -78,10 +81,28 @@ function CompanyOrders() {
         setItemChecks([])
         fetchOrders()
       } else {
-        const data = await res.json()
         showToast(data.message || 'Update failed', 'error')
       }
-    } catch { showToast('Network error', 'error') }
+    } catch (err) {
+      console.error('[CompanyOrders] network error:', err)
+      showToast('Network error', 'error')
+    }
+  }
+
+  const handleDeleteOrder = async (id) => {
+    if (!window.confirm(`Are you sure you want to permanently delete order #${id}?`)) return
+    try {
+      const res = await fetch(`${API}/${id}`, { method: 'DELETE', headers })
+      if (res.ok) {
+        showToast(`Order #${id} deleted`)
+        fetchOrders()
+      } else {
+        const data = await res.json()
+        showToast(data.message || 'Failed to delete order', 'error')
+      }
+    } catch {
+      showToast('Network error', 'error')
+    }
   }
 
   const openOrderDetails = async (row) => {
@@ -171,6 +192,13 @@ function CompanyOrders() {
           style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}
         >
           🔍 View
+        </button>
+        <button
+          className={`${compStyles.orderBtn}`}
+          onClick={() => handleDeleteOrder(row.id)}
+          style={{ background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca' }}
+        >
+          🗑️ Delete
         </button>
       </div>
     )
