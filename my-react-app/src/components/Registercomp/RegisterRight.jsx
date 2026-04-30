@@ -10,7 +10,7 @@ function RegisterRight() {
     confirmPassword: '',
     phone: '',
     account_type: '',
-    entity_name: '',
+    company_name: '',
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -21,9 +21,9 @@ function RegisterRight() {
   }
 
   const handleRegister = async () => {
-    const { name, email, password, confirmPassword, phone, account_type, entity_name } = form
+    const { name, email, password, confirmPassword, phone, account_type, company_name } = form
 
-    if (!name || !email || !password || !confirmPassword || !phone || !account_type || !entity_name) {
+    if (!name || !email || !password || !confirmPassword || !phone || !account_type || !company_name) {
       setError('Please fill in all fields.')
       return
     }
@@ -45,7 +45,7 @@ function RegisterRight() {
       const response = await fetch('http://localhost:3000/api/users/public-register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password, account_type, phone, entity_name }),
+        body: JSON.stringify({ name, email, password, account_type, phone, company_name }),
       })
 
       const data = await response.json()
@@ -63,7 +63,7 @@ function RegisterRight() {
     }
   }
 
-  const entityLabel = form.account_type === 'company_admin'
+  const companyLabel = form.account_type === 'company_admin'
     ? 'Company Name'
     : form.account_type === 'pharmacy_admin'
       ? 'Pharmacy Name'
@@ -148,12 +148,12 @@ function RegisterRight() {
           </div>
 
           <div className={`${styles.loginField} ${styles.fullWidth}`}>
-            <label>{entityLabel}</label>
+            <label>{companyLabel}</label>
             <input
               type="text"
-              name="entity_name"
+              name="company_name"
               placeholder={form.account_type === 'company_admin' ? 'e.g. Al-Dawaa Pharmaceuticals' : 'e.g. City Pharmacy'}
-              value={form.entity_name}
+              value={form.company_name}
               onChange={handleChange}
             />
           </div>
