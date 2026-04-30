@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Sidebar from '../components/Dashescomp/Sidebar'
 import DashHeader from '../components/Dashescomp/DashHeader'
 import ProductManager from '../components/Companycomp/ProductManager'
@@ -10,17 +11,31 @@ const tabTitles = {
   dashboard: { title: 'Dashboard', breadcrumb: 'Company → Dashboard' },
   products: { title: 'Product Management', breadcrumb: 'Company → Products' },
   my_products: { title: 'My Products', breadcrumb: 'Company → My Products' },
-  my_orders: { title: 'My Orders', breadcrumb: 'Company → My Orders' },
   incoming_orders: { title: 'Incoming Orders', breadcrumb: 'Company → Incoming Orders' },
-  promotions: { title: 'Promotions', breadcrumb: 'Company → Promotions' },
   reports: { title: 'Reports', breadcrumb: 'Company → Reports' },
   settings: { title: 'Settings', breadcrumb: 'Company → Settings' },
 }
 
 function CompanyDash() {
-  const [activeTab, setActiveTab] = useState('my_orders')
+  const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState('incoming_orders')
   const current = tabTitles[activeTab] || tabTitles.dashboard
   const userName = localStorage.getItem('user_name') || 'Company'
+  const accountType = localStorage.getItem('account_type')
+
+  useEffect(() => {
+    if (!accountType) {
+      navigate('/login')
+    } else if (accountType === 'pharmacy_admin') {
+      navigate('/pharmacy-dashboard')
+    } else if (accountType === 'super_admin') {
+      navigate('/admin')
+    }
+  }, [accountType, navigate])
+
+  if (accountType !== 'company_admin') {
+    return null
+  }
 
   return (
     <div className={styles.dashLayout}>
@@ -40,8 +55,8 @@ function CompanyDash() {
             onViewOrders={() => setActiveTab('incoming_orders')} 
           />}
           {(activeTab === 'products' || activeTab === 'my_products') && <ProductManager />}
-          {(activeTab === 'orders' || activeTab === 'incoming_orders' || activeTab === 'my_orders') && <CompanyOrders />}
-          {['promotions', 'reports', 'settings'].includes(activeTab) && (
+          {(activeTab === 'orders' || activeTab === 'incoming_orders') && <CompanyOrders />}
+          {['reports', 'settings'].includes(activeTab) && (
             <div style={{ textAlign: 'center', marginTop: '5rem', color: '#8b9d94' }}>
               <h2>Coming Soon</h2>
               <p>This module is under development.</p>
