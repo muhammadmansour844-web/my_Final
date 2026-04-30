@@ -1,7 +1,8 @@
-require('dotenv').config(); // بيقرأ ملف .env عشان ياخد المتغيرات السرية زي JWT_SECRET
+require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const path = require('path');
 
 // استدعاء الراوترات
 const userRoutes = require('./routes/users');
@@ -18,6 +19,7 @@ const app = express();
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cors());
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ربط الراوترات مع الامتداد الصحيح
 app.use('/api/users', userRoutes);
