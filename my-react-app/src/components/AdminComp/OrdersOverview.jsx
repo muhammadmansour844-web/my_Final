@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
 import DataTable from '../Dashescomp/DataTable'
-import styles from '../Dashescomp/Dashes.module.css'
 
 const API = 'http://localhost:3000/api/orders'
 
@@ -35,15 +34,8 @@ function OrdersOverview() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('pending')
   const [search, setSearch] = useState('')
-  const [toast, setToast] = useState(null)
-
   const token = localStorage.getItem('token')
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
-
-  const showToast = (msg, type = 'success') => {
-    setToast({ msg, type })
-    setTimeout(() => setToast(null), 3000)
-  }
 
   const fetchOrders = async () => {
     setLoading(true)
@@ -58,21 +50,6 @@ function OrdersOverview() {
   }
 
   useEffect(() => { fetchOrders() }, [])
-
-  const updateStatus = async (id, status) => {
-    try {
-      const res = await fetch(`${API}/${id}`, {
-        method: 'PUT', headers, body: JSON.stringify({ status })
-      })
-      if (res.ok) {
-        showToast(`Order #${id} → ${status}`)
-        fetchOrders()
-      } else {
-        const data = await res.json()
-        showToast(data.message || 'Update failed', 'error')
-      }
-    } catch { showToast('Network error', 'error') }
-  }
 
   const totalValue   = orders.reduce((s, o) => s + Number(o.total_amount || 0), 0)
   const pendingValue = orders.filter(o => o.status === 'pending').reduce((s, o) => s + Number(o.total_amount || 0), 0)
@@ -113,31 +90,9 @@ function OrdersOverview() {
     { key: 'status', label: 'STATUS', render: (val) => statusBadge(val) },
     {
       key: 'created_at', label: 'DATE',
-      render: (val) => val ? new Date(val).toLocaleDateString() : '—'
+      render: (val) => val ? new Date(val).toLocaleDateString('en-GB') : '—'
     },
   ]
-
-  const renderActions = (row) => {
-    const btns = []
-    if (row.status === 'pending') {
-      btns.push(
-        <button key="approve" className={`${styles.actionBtn} ${styles.actionBtnView}`} onClick={() => updateStatus(row.id, 'approved')} title="Approve">✅</button>,
-        <button key="reject" className={`${styles.actionBtn} ${styles.actionBtnDelete}`} onClick={() => updateStatus(row.id, 'rejected')} title="Reject">❌</button>
-      )
-    }
-    if (row.status === 'approved') {
-      btns.push(
-        <button key="ship" className={`${styles.actionBtn} ${styles.actionBtnEdit}`} onClick={() => updateStatus(row.id, 'shipped')} title="Ship">🚚</button>,
-        <button key="cancel" className={`${styles.actionBtn} ${styles.actionBtnDelete}`} onClick={() => updateStatus(row.id, 'cancelled')} title="Cancel">✕</button>
-      )
-    }
-    if (row.status === 'shipped') {
-      btns.push(
-        <button key="deliver" className={`${styles.actionBtn} ${styles.actionBtnView}`} onClick={() => updateStatus(row.id, 'delivered')} title="Deliver">📬</button>
-      )
-    }
-    return btns.length > 0 ? btns : <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>—</span>
-  }
 
   return (
     <>
@@ -219,15 +174,8 @@ function OrdersOverview() {
         title={`Orders (${filtered.length}${search ? ` matching "${search}"` : ''})`}
         columns={columns}
         data={filtered}
-        actions={renderActions}
         loading={loading}
       />
-
-      {toast && (
-        <div className={`${styles.toast} ${toast.type === 'error' ? styles.toastError : styles.toastSuccess}`}>
-          {toast.type === 'error' ? '✕' : '✓'} {toast.msg}
-        </div>
-      )}
     </>
   )
 }
