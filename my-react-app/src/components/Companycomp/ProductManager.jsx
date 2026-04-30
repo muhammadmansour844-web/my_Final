@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import DataTable from '../Dashescomp/DataTable'
 import Modal from '../Dashescomp/Modal'
+import AddProduct from './AddProduct'
 import styles from '../Dashescomp/Dashes.module.css'
 import compStyles from './Company.module.css'
 
@@ -9,30 +10,15 @@ const API_PRODUCTS = 'http://localhost:3000/api/products'
 function ProductManager() {
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
-  const [showModal, setShowModal] = useState(false)
+  const [showAddPage, setShowAddPage] = useState(false)
   const [editing, setEditing] = useState(null)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState(null)
-  const [form, setForm] = useState({
-    name: '', category: '', manufacturer: '', description: '',
-    price: '', stock_quantity: '', has_expiry: 0, expiry_date: '',
-    discount_percentage: 0, image_url: '', promotion_end_date: ''
-  })
-
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onloadend = () => setForm(prev => ({ ...prev, image_url: reader.result }))
-      reader.readAsDataURL(file)
-    }
-  }
+  const [discountModal, setDiscountModal] = useState({ show: false, product: null, discount: '' })
 
   const token = localStorage.getItem('token')
-  const headers = {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`
-  }
+  const authHeader = { 'Authorization': `Bearer ${token}` }
+  const jsonHeaders = { ...authHeader, 'Content-Type': 'application/json' }
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type })
@@ -42,7 +28,7 @@ function ProductManager() {
   const fetchProducts = async () => {
     setLoading(true)
     try {
-      const res = await fetch(API_PRODUCTS, { headers })
+      const res = await fetch(API_PRODUCTS, { headers: jsonHeaders })
       if (res.ok) setProducts(await res.json())
     } catch (err) {
       console.error('Failed to fetch products:', err)
@@ -53,51 +39,57 @@ function ProductManager() {
 
   useEffect(() => { fetchProducts() }, [])
 
-  const emptyForm = {
-    name: '', category: '', manufacturer: '', description: '',
-    price: '', stock_quantity: '', has_expiry: 0, expiry_date: '',
-    discount_percentage: 0, image_url: '', promotion_end_date: ''
-  }
-
   const openAdd = () => {
     setEditing(null)
-    setForm(emptyForm)
-    setShowModal(true)
+    setShowAddPage(true)
   }
 
   const openEdit = (product) => {
-    setEditing(product)
-    setForm({
-      name: product.name,
-      category: product.category || '',
-      manufacturer: product.manufacturer || '',
-      description: product.description || '',
-      price: product.price,
-      stock_quantity: product.stock_quantity,
-      has_expiry: product.has_expiry || 0,
+    setEditing({
+      ...product,
       expiry_date: product.expiry_date ? product.expiry_date.split('T')[0] : '',
-      discount_percentage: product.discount_percentage || 0,
-      image_url: product.image_url || '',
       promotion_end_date: product.promotion_end_date ? product.promotion_end_date.substring(0, 16) : ''
     })
-    setShowModal(true)
+    setShowAddPage(true)
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (formData) => {
     setSaving(true)
     try {
-      const body = { ...form }
+      const { existingImages, newFiles, ...fields } = formData
+
+      // الخطوة 1: إرسال بيانات المنتج كـ JSON
+      const productBody = { ...fields, has_expiry: fields.expiry_date ? 1 : 0 }
       const url = editing ? `${API_PRODUCTS}/${editing.id}` : API_PRODUCTS
       const method = editing ? 'PUT' : 'POST'
-      const res = await fetch(url, { method, headers, body: JSON.stringify(body) })
-      if (res.ok) {
-        showToast(editing ? 'Product updated' : 'Product created')
-        fetchProducts()
-        setShowModal(false)
-      } else {
+
+      const res = await fetch(url, { method, headers: jsonHeaders, body: JSON.stringify(productBody) })
+      if (!res.ok) {
         const data = await res.json()
         showToast(data.message || (editing ? 'Update failed' : 'Creation failed'), 'error')
+        return
       }
+
+      const result = await res.json()
+      const productId = editing ? editing.id : result.productId
+
+      // الخطوة 2: إدارة الصور (إضافة/حذف) كـ FormData منفصل
+      if (editing) {
+        // عند التعديل: أرسل القائمة الكاملة (ابقاء + جديد)
+        const imgForm = new FormData()
+        existingImages?.forEach(img => imgForm.append('keepImages', img))
+        newFiles?.forEach(f => imgForm.append('images', f))
+        await fetch(`${API_PRODUCTS}/${productId}/images`, { method: 'PUT', headers: authHeader, body: imgForm })
+      } else if (newFiles?.length > 0) {
+        // عند الإنشاء: أرسل الصور الجديدة فقط
+        const imgForm = new FormData()
+        newFiles.forEach(f => imgForm.append('images', f))
+        await fetch(`${API_PRODUCTS}/${productId}/images`, { method: 'POST', headers: authHeader, body: imgForm })
+      }
+
+      showToast(editing ? 'Product updated' : 'Product created')
+      fetchProducts()
+      setShowAddPage(false)
     } catch {
       showToast('Network error', 'error')
     } finally {
@@ -108,13 +100,31 @@ function ProductManager() {
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this product?')) return
     try {
-      const res = await fetch(`${API_PRODUCTS}/${id}`, { method: 'DELETE', headers })
+      const res = await fetch(`${API_PRODUCTS}/${id}`, { method: 'DELETE', headers: jsonHeaders })
       if (res.ok) { showToast('Product deleted'); fetchProducts() }
       else {
         const data = await res.json()
         showToast(data.message || 'Delete failed', 'error')
       }
     } catch { showToast('Network error', 'error') }
+  }
+
+  const handleSaveDiscount = async (product, newDiscount) => {
+    try {
+      const { images, ...fields } = product
+      const body = { ...fields, discount_percentage: Number(newDiscount), has_expiry: product.expiry_date ? 1 : 0 }
+      const res = await fetch(`${API_PRODUCTS}/${product.id}`, { method: 'PUT', headers: jsonHeaders, body: JSON.stringify(body) })
+      if (res.ok) {
+        showToast('Discount updated')
+        fetchProducts()
+        setDiscountModal({ show: false, product: null, discount: '' })
+      } else {
+        const data = await res.json()
+        showToast(data.message || 'Failed to update discount', 'error')
+      }
+    } catch {
+      showToast('Network error', 'error')
+    }
   }
 
   const columns = [
@@ -149,8 +159,34 @@ function ProductManager() {
     <>
       <button className={`${styles.actionBtn} ${styles.actionBtnEdit}`} onClick={() => openEdit(row)} title="Edit">✏️</button>
       <button className={`${styles.actionBtn} ${styles.actionBtnDelete}`} onClick={() => handleDelete(row.id)} title="Delete">🗑️</button>
+      <button
+        className={`${styles.actionBtn}`}
+        onClick={() => setDiscountModal({ show: true, product: row, discount: row.discount_percentage || '' })}
+        title="Set Discount"
+        style={{ color: '#059669', borderColor: '#d1fae5', background: '#ecfdf5' }}
+      >
+        🏷️
+      </button>
     </>
   )
+
+  if (showAddPage) {
+    return (
+      <>
+        <AddProduct
+          onBack={() => setShowAddPage(false)}
+          onSave={handleSubmit}
+          loading={saving}
+          initialData={editing}
+        />
+        {toast && (
+          <div className={`${styles.toast} ${toast.type === 'error' ? styles.toastError : styles.toastSuccess}`}>
+            {toast.type === 'error' ? '✕' : '✓'} {toast.msg}
+          </div>
+        )}
+      </>
+    )
+  }
 
   return (
     <>
@@ -164,67 +200,27 @@ function ProductManager() {
         loading={loading}
       />
 
-      {showModal && (
+      {discountModal.show && (
         <Modal
-          title={editing ? 'Edit Product' : 'Add New Product'}
-          onClose={() => setShowModal(false)}
-          onSubmit={handleSubmit}
-          submitLabel={editing ? 'Update' : 'Create'}
-          loading={saving}
+          title={`Set Discount for ${discountModal.product?.name}`}
+          onClose={() => setDiscountModal({ show: false, product: null, discount: '' })}
         >
-          <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Product Name</label>
-            <input className={styles.formInput} placeholder="e.g. Paracetamol 500mg" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-          </div>
-          <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Product Image</label>
-            <input type="file" accept="image/*" className={styles.formInput} onChange={handleImageUpload} />
-            {form.image_url && (
-              <div style={{ marginTop: '10px' }}>
-                <img src={form.image_url} alt="Preview" style={{ maxHeight: '60px', borderRadius: '6px', border: '1px solid #ddd' }} />
-              </div>
-            )}
-          </div>
-          <div className={styles.formRow}>
-            <div className={styles.formGroup}>
-              <label className={styles.formLabel}>Category</label>
-              <input className={styles.formInput} placeholder="e.g. Pain Relief" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} />
-            </div>
-            <div className={styles.formGroup}>
-              <label className={styles.formLabel}>Manufacturer</label>
-              <input className={styles.formInput} placeholder="e.g. Pharma Inc." value={form.manufacturer} onChange={e => setForm({ ...form, manufacturer: e.target.value })} />
-            </div>
-          </div>
-          <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Description</label>
-            <input className={styles.formInput} placeholder="Short description" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
-          </div>
-          <div className={styles.formRow}>
-            <div className={styles.formGroup}>
-              <label className={styles.formLabel}>Price ($)</label>
-              <input className={styles.formInput} type="number" step="0.01" placeholder="0.00" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} />
-            </div>
-            <div className={styles.formGroup}>
-              <label className={styles.formLabel}>Stock Quantity</label>
-              <input className={styles.formInput} type="number" placeholder="0" value={form.stock_quantity} onChange={e => setForm({ ...form, stock_quantity: e.target.value })} />
-            </div>
-          </div>
-          <div className={styles.formRow}>
-            <div className={styles.formGroup}>
-              <label className={styles.formLabel}>Discount (%)</label>
-              <input className={styles.formInput} type="number" min="0" max="100" placeholder="0" value={form.discount_percentage} onChange={e => setForm({ ...form, discount_percentage: e.target.value })} />
-            </div>
-            <div className={styles.formGroup}>
-              <label className={styles.formLabel}>Expiry Date</label>
-              <input className={styles.formInput} type="date" value={form.expiry_date} onChange={e => setForm({ ...form, expiry_date: e.target.value, has_expiry: e.target.value ? 1 : 0 })} />
-            </div>
-          </div>
-          <div className={styles.formRow}>
-            <div className={styles.formGroup}>
-              <label className={styles.formLabel}>Promotion End Date/Time</label>
-              <input className={styles.formInput} type="datetime-local" value={form.promotion_end_date} onChange={e => setForm({ ...form, promotion_end_date: e.target.value })} />
-            </div>
-            <div></div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <label style={{ fontSize: '0.9rem', fontWeight: 600 }}>Discount Percentage (%)</label>
+            <input
+              type="number"
+              value={discountModal.discount}
+              onChange={(e) => setDiscountModal(p => ({ ...p, discount: e.target.value }))}
+              style={{ padding: '0.75rem', borderRadius: '8px', border: '1.5px solid #e2e8f0', outline: 'none' }}
+              min="0"
+              max="100"
+            />
+            <button
+              onClick={() => handleSaveDiscount(discountModal.product, discountModal.discount)}
+              style={{ background: '#013223', color: 'white', padding: '0.75rem', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 700 }}
+            >
+              Save Discount
+            </button>
           </div>
         </Modal>
       )}
