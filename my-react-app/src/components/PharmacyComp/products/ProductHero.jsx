@@ -5,16 +5,18 @@ import styles from '../styles/PharmaBridge.module.css';
 
 const API_CARTS = 'http://localhost:3000/api/carts';
 
-const CARTON_OPTIONS = [
-    { size: 24, discount: 0.08, label: 'Carton 24' },
-    { size: 48, discount: 0.15, label: 'Carton 48' },
-];
+// الخيارات تُبنى ديناميكياً من بيانات المنتج
 
 export default function ProductHero({ product }) {
     const navigate = useNavigate();
     const [quantity, setQuantity] = useState(1);
-    const [unitType, setUnitType] = useState('single'); // 'single' | 'carton24' | 'carton48'
+    // 'single' = طلب بالحبة | 'package' = طلب بالكرتونة/العلبة
+    const [unitType, setUnitType] = useState('single');
     const [loading, setLoading] = useState(false);
+
+    const unitsPerPackage = parseInt(product.units_per_package) || 1;
+    const packageLabel = product.unit_type || 'Unit';
+    const hasPackageOption = unitsPerPackage > 1;
     const [toast, setToast] = useState(null);
     const [timeLeftStr, setTimeLeftStr] = useState('');
 
@@ -60,18 +62,20 @@ export default function ProductHero({ product }) {
 
     const finalPrice = discountedPrice || parseFloat(product.price).toFixed(2);
 
-    const activeCarton = CARTON_OPTIONS.find(c => `carton${c.size}` === unitType);
-    const cartonUnitPrice = activeCarton
-        ? (parseFloat(finalPrice) * (1 - activeCarton.discount)).toFixed(2)
+    const isPackageMode = unitType === 'package' && hasPackageOption;
+    const PACKAGE_DISCOUNT = 0.08; // 8% خصم عند الشراء بالكرتونة
+
+    const packageUnitPrice = isPackageMode
+        ? (parseFloat(finalPrice) * (1 - PACKAGE_DISCOUNT)).toFixed(2)
         : null;
-    const effectiveUnitPrice = cartonUnitPrice || finalPrice;
-    // in carton mode: quantity = number of cartons; effectiveQty = total units
-    const effectiveQty = activeCarton ? quantity * activeCarton.size : quantity;
-    const pricePerCarton = activeCarton
-        ? (parseFloat(cartonUnitPrice) * activeCarton.size).toFixed(2)
+    const effectiveUnitPrice = packageUnitPrice || finalPrice;
+    // في وضع الكرتون: quantity = عدد الكراتين، effectiveQty = إجمالي الحبات
+    const effectiveQty = isPackageMode ? quantity * unitsPerPackage : quantity;
+    const pricePerPackage = isPackageMode
+        ? (parseFloat(packageUnitPrice) * unitsPerPackage).toFixed(2)
         : null;
-    const subtotal = activeCarton
-        ? (quantity * parseFloat(pricePerCarton)).toFixed(2)
+    const subtotal = isPackageMode
+        ? (quantity * parseFloat(pricePerPackage)).toFixed(2)
         : (parseFloat(effectiveUnitPrice) * quantity).toFixed(2);
 
     const token = localStorage.getItem('token');
@@ -85,16 +89,11 @@ export default function ProductHero({ product }) {
         setTimeout(() => setToast(null), 3000);
     };
 
-    const maxQty = activeCarton
-        ? Math.floor(product.stock_quantity / activeCarton.size)
-        : product.stock_quantity;
+    // الحد الأقصى: لو وضع كرتون = عدد الكراتين في المخزون، لو حبة = عدد الحبات
+    const totalUnits = product.stock_quantity * unitsPerPackage;
+    const maxQty = isPackageMode ? product.stock_quantity : totalUnits;
     const decreaseQty = () => setQuantity(q => Math.max(1, q - 1));
     const increaseQty = () => setQuantity(q => Math.min(maxQty, q + 1));
-    const selectCarton = (opt) => {
-        if (product.stock_quantity < opt.size) return;
-        setUnitType(`carton${opt.size}`);
-        setQuantity(1); // start at 1 carton
-    };
 
     const handleAddToCart = async () => {
         setLoading(true);
@@ -127,7 +126,9 @@ export default function ProductHero({ product }) {
 
             const result = await addRes.json();
             if (addRes.ok) {
-                const label = activeCarton ? `Carton ${activeCarton.size}` : `×${effectiveQty}`;
+                const label = isPackageMode
+                    ? `${quantity} ${packageLabel}${quantity > 1 ? 's' : ''}`
+                    : `×${effectiveQty}`;
                 showToast(`${product.name} (${label}) added to cart!`);
             } else {
                 showToast(result.message || 'Failed to add to cart', 'error');
@@ -145,9 +146,9 @@ export default function ProductHero({ product }) {
             {/* Image Section */}
             <div className={styles.imageGallery}>
                 <div className={styles.mainImage} style={{ position: 'relative' }}>
-                    {product.image_url ? (
+                    {product.images?.length > 0 ? (
                         <img
-                            src={product.image_url}
+                            src={`http://localhost:3000/uploads/products/${product.images[0]}`}
                             alt={product.name}
                             style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '12px' }}
                         />
@@ -214,13 +215,19 @@ export default function ProductHero({ product }) {
                             background: '#d1fae5', border: '2px solid #6ee7b7',
                             borderRadius: '10px', padding: '7px 16px',
                         }}>
-                            📦 In Stock: <strong>{product.stock_quantity.toLocaleString()}</strong> units
+                            📦 In Stock:{' '}
+                            <strong>{product.stock_quantity.toLocaleString()}</strong>{' '}
+                            {packageLabel}{product.stock_quantity !== 1 ? 's' : ''}
+                            {unitsPerPackage > 1 && (
+                                <span style={{ fontWeight: 600, color: '#047857', fontSize: '0.85rem' }}>
+                                    ({totalUnits.toLocaleString()} units total)
+                                </span>
+                            )}
                         </span>
                     </div>
 
                     {/* Unit mode selector */}
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
-                        {/* Single pill button */}
                         <button
                             type="button"
                             onClick={() => { setUnitType('single'); setQuantity(1); }}
@@ -236,70 +243,59 @@ export default function ProductHero({ product }) {
                             💊 Per Unit
                         </button>
 
-                        {/* Carton buttons */}
-                        {CARTON_OPTIONS.map(opt => {
-                            const key = `carton${opt.size}`;
-                            const isActive = unitType === key;
-                            const disabled = product.stock_quantity < opt.size;
-                            const savings = (opt.discount * 100).toFixed(0);
-                            return (
-                                <button
-                                    key={key}
-                                    type="button"
-                                    disabled={disabled}
-                                    onClick={() => selectCarton(opt)}
-                                    style={{
-                                        padding: '7px 16px', borderRadius: '20px',
-                                        border: `2px solid ${isActive ? '#b45309' : '#fcd34d'}`,
-                                        background: isActive ? '#92400e' : '#fef3c7',
-                                        color: isActive ? '#fff' : '#78350f',
-                                        fontWeight: 700, fontSize: '0.82rem',
-                                        cursor: disabled ? 'not-allowed' : 'pointer',
-                                        opacity: disabled ? 0.45 : 1,
-                                        transition: 'all 0.15s',
-                                        display: 'flex', alignItems: 'center', gap: '5px',
-                                    }}
-                                >
-                                    📦 {opt.label}
-                                    <span style={{
-                                        background: isActive ? 'rgba(255,255,255,0.25)' : '#fcd34d',
-                                        color: isActive ? '#fff' : '#78350f',
-                                        borderRadius: '10px', padding: '1px 6px',
-                                        fontSize: '0.7rem', fontWeight: 800,
-                                    }}>
-                                        -{savings}%
-                                    </span>
-                                </button>
-                            );
-                        })}
+                        {hasPackageOption && (
+                            <button
+                                type="button"
+                                onClick={() => { setUnitType('package'); setQuantity(1); }}
+                                style={{
+                                    padding: '7px 16px', borderRadius: '20px',
+                                    border: `2px solid ${isPackageMode ? '#b45309' : '#fcd34d'}`,
+                                    background: isPackageMode ? '#92400e' : '#fef3c7',
+                                    color: isPackageMode ? '#fff' : '#78350f',
+                                    fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer',
+                                    transition: 'all 0.15s',
+                                    display: 'flex', alignItems: 'center', gap: '5px',
+                                }}
+                            >
+                                📦 Per {packageLabel} ({unitsPerPackage} units)
+                                <span style={{
+                                    background: isPackageMode ? 'rgba(255,255,255,0.25)' : '#fcd34d',
+                                    color: isPackageMode ? '#fff' : '#78350f',
+                                    borderRadius: '10px', padding: '1px 6px',
+                                    fontSize: '0.7rem', fontWeight: 800,
+                                }}>
+                                    -8%
+                                </span>
+                            </button>
+                        )}
                     </div>
 
-                    {/* Quantity stepper — works in both single and carton mode */}
+                    {/* Quantity stepper */}
                     <div className={styles.qtyControls}>
                         <div className={styles.qtyInputGroup}>
                             <button onClick={decreaseQty} disabled={quantity <= 1}
                                 style={{ cursor: quantity <= 1 ? 'not-allowed' : 'pointer' }}>−</button>
                             <input
                                 type="text"
-                                value={activeCarton
-                                    ? `${quantity} Carton${quantity > 1 ? 's' : ''}`
+                                value={isPackageMode
+                                    ? `${quantity} ${packageLabel}${quantity > 1 ? 's' : ''}`
                                     : quantity}
                                 readOnly
-                                style={{ minWidth: activeCarton ? '100px' : '48px' }}
+                                style={{ minWidth: isPackageMode ? '110px' : '48px' }}
                             />
                             <button onClick={increaseQty} disabled={quantity >= maxQty}
                                 style={{ cursor: quantity >= maxQty ? 'not-allowed' : 'pointer' }}>+</button>
                         </div>
-                        {activeCarton
+                        {isPackageMode
                             ? <span style={{ fontSize: '0.82rem', color: '#78350f', fontWeight: 600 }}>
-                                {effectiveQty} units total · ${pricePerCarton}/carton
+                                {effectiveQty} units total · ${pricePerPackage}/{packageLabel.toLowerCase()}
                               </span>
                             : <span style={{ fontSize: '0.82rem', color: '#6b7280' }}>per unit · ${finalPrice}/unit</span>
                         }
                     </div>
 
-                    {/* Carton info bar */}
-                    {activeCarton && (
+                    {/* Package info bar */}
+                    {isPackageMode && (
                         <div style={{
                             display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap',
                             background: '#fef9c3', border: '1.5px solid #fcd34d',
@@ -308,14 +304,14 @@ export default function ProductHero({ product }) {
                             <div>
                                 <div style={{ fontSize: '0.75rem', color: '#78350f', fontWeight: 600 }}>QUANTITY</div>
                                 <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#92400e' }}>
-                                    {quantity} Carton{quantity > 1 ? 's' : ''} / {effectiveQty} units
+                                    {quantity} {packageLabel}{quantity > 1 ? 's' : ''} / {effectiveQty} units
                                 </div>
                             </div>
                             <div style={{ borderLeft: '1.5px solid #fcd34d', height: '36px' }} />
                             <div>
                                 <div style={{ fontSize: '0.75rem', color: '#78350f', fontWeight: 600 }}>UNIT PRICE</div>
                                 <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#92400e' }}>
-                                    ${cartonUnitPrice}
+                                    ${packageUnitPrice}
                                     <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#a16207', marginLeft: '4px', textDecoration: 'line-through' }}>${finalPrice}</span>
                                 </div>
                             </div>
@@ -323,7 +319,7 @@ export default function ProductHero({ product }) {
                             <div>
                                 <div style={{ fontSize: '0.75rem', color: '#78350f', fontWeight: 600 }}>SAVINGS</div>
                                 <div style={{ fontSize: '1rem', fontWeight: 800, color: '#15803d' }}>
-                                    ${((parseFloat(finalPrice) - parseFloat(cartonUnitPrice)) * effectiveQty).toFixed(2)} saved
+                                    ${((parseFloat(finalPrice) - parseFloat(packageUnitPrice)) * effectiveQty).toFixed(2)} saved
                                 </div>
                             </div>
                         </div>
@@ -331,14 +327,14 @@ export default function ProductHero({ product }) {
 
                     {/* Subtotal */}
                     <p style={{ fontSize: '0.95rem', color: '#6b7280', margin: '10px 0 14px' }}>
-                        {activeCarton
-                            ? `Subtotal (${quantity} carton${quantity > 1 ? 's' : ''} / ${effectiveQty} units):`
+                        {isPackageMode
+                            ? `Subtotal (${quantity} ${packageLabel.toLowerCase()}${quantity > 1 ? 's' : ''} / ${effectiveQty} units):`
                             : `Subtotal (${quantity} units):`
                         }&nbsp;
                         <strong style={{ color: '#0b2e20', fontSize: '1.05rem' }}>${subtotal}</strong>
-                        {activeCarton && (
+                        {isPackageMode && (
                             <span style={{ marginLeft: '8px', color: '#15803d', fontWeight: 700, fontSize: '0.82rem' }}>
-                                ({(activeCarton.discount * 100).toFixed(0)}% carton discount applied)
+                                (8% package discount applied)
                             </span>
                         )}
                     </p>
@@ -347,7 +343,7 @@ export default function ProductHero({ product }) {
                         <button
                             className={styles.addToCartBtn}
                             onClick={handleAddToCart}
-                            disabled={product.stock_quantity <= 0 || loading || effectiveQty > product.stock_quantity}
+                            disabled={product.stock_quantity <= 0 || loading || (isPackageMode ? quantity > product.stock_quantity : effectiveQty > totalUnits)}
                         >
                             <FiShoppingCart />
                             {loading ? 'Adding...' : product.stock_quantity <= 0 ? 'OUT OF STOCK' : 'ADD TO CART'}
