@@ -177,7 +177,7 @@ router.get('/:cartId/items', verifyToken, isPharmacy, async (req, res) => {
 
     const [rows] = await pool.query(
       `SELECT ci.id, ci.product_id, ci.quantity, ci.price,
-              p.name, p.image_url, p.stock_quantity,
+              p.name, p.stock_quantity,
               (ci.quantity * ci.price) as subtotal
        FROM cart_items ci
        JOIN products p ON ci.product_id = p.id
@@ -215,6 +215,47 @@ router.delete('/:cartId/items/:itemId', verifyToken, isPharmacy, async (req, res
 
     await pool.query(`DELETE FROM cart_items WHERE id = ?`, [itemId]);
     res.json({ message: 'Item removed from cart' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// تعديل كمية منتج في السلة
+router.put('/:cartId/items/:itemId', verifyToken, isPharmacy, async (req, res) => {
+  try {
+    const { cartId, itemId } = req.params;
+    const { quantity } = req.body;
+
+    if (!quantity || quantity < 1) {
+      return res.status(400).json({ message: 'quantity must be >= 1' });
+    }
+
+    const isOwner = await verifyCartOwnership(cartId, req.user.id);
+    if (!isOwner) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const [item] = await pool.query(
+      `SELECT ci.id, ci.product_id FROM cart_items ci WHERE ci.id = ? AND ci.cart_id = ?`,
+      [itemId, cartId]
+    );
+    if (item.length === 0) {
+      return res.status(404).json({ message: 'Item not found' });
+    }
+
+    const [product] = await pool.query(
+      `SELECT stock_quantity, price FROM products WHERE id = ?`, [item[0].product_id]
+    );
+    if (product[0].stock_quantity < quantity) {
+      return res.status(400).json({ message: `Insufficient stock, available: ${product[0].stock_quantity}` });
+    }
+
+    await pool.query(
+      `UPDATE cart_items SET quantity = ?, price = ? WHERE id = ?`,
+      [quantity, product[0].price, itemId]
+    );
+
+    res.json({ message: 'Quantity updated', quantity });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
