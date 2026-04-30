@@ -1,95 +1,107 @@
-const express = require('express'); // إطار العمل الأساسي
-const bcrypt = require('bcryptjs'); // مكتبة تشفير الباسورد
-const jwt = require('jsonwebtoken'); // مكتبة إنشاء والتحقق من التوكن
-const pool = require('../db'); // الاتصال بقاعدة البيانات
+const express = require('express');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
+const pool = require('../db');
 
-const router = express.Router(); // بنعمل راوتر منفصل عشان نظم الكود
+const router = express.Router();
 
-// ===== الحراس (Middleware) =====
-// هاي الدوال بتشتغل قبل أي route عشان تتحقق من صلاحية المستخدم
-
-// الحارس الأول — بيتحقق إنه المستخدم مسجل دخول وعنده توكن صالح
-const verifyToken = (req, res, next) => {
-  // بياخد التوكن من الهيدر — شكله: "Bearer eyJhbGc..."
-  const token = req.headers['authorization']?.split(' ')[1];
-  
-  // مافي توكن؟ ارفض الطلب فوراً
-  if (!token) return res.status(401).json({ message: 'No token provided' });
-
+// ===== Auto-create pending_requests table =====
+;(async () => {
   try {
-    // تحقق من صحة التوكن باستخدام المفتاح السري
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    // احفظ بيانات المستخدم عشان نستخدمها بعدين في الكود
-    req.user = decoded;
-    // كمّل للـ route التالي
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS pending_requests (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        full_name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        phone VARCHAR(50),
+        account_type ENUM('company_admin', 'pharmacy_admin') NOT NULL,
+        company_name VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  } catch (err) {
+    console.error('Could not create pending_requests table:', err.message);
+  }
+})();
+
+// ===== Nodemailer =====
+const getTransporter = () => {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return null;
+  return nodemailer.createTransport({
+    service: process.env.EMAIL_SERVICE || 'gmail',
+    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+  });
+};
+
+const sendMail = async (to, subject, html) => {
+  const transporter = getTransporter();
+  if (!transporter) return;
+  try {
+    await transporter.sendMail({ from: process.env.EMAIL_USER, to, subject, html });
+  } catch (err) {
+    console.error('Email send failed:', err.message);
+  }
+};
+
+// ===== Auth Middleware =====
+const verifyToken = (req, res, next) => {
+  const token = req.headers['authorization']?.split(' ')[1];
+  if (!token) return res.status(401).json({ message: 'No token provided' });
+  try {
+    req.user = jwt.verify(token, process.env.JWT_SECRET);
     next();
   } catch {
-    // التوكن غلط أو منتهي الصلاحية
     return res.status(401).json({ message: 'Invalid token' });
   }
-};  
+};
 
-// الحارس الثاني — بيتحقق إنه المستخدم هو super_admin
 const isSuperAdmin = (req, res, next) => {
-  // req.user جاي من الحارس الأول فوق
   if (req.user.account_type !== 'super_admin') {
-    // مسجل دخول بس مش أدمن؟ ممنوع!
     return res.status(403).json({ message: 'Access denied' });
   }
-  // هو أدمن؟ كمّل
   next();
 };
 
-// ===== الـ Routes =====
+// ===== Routes =====
 
-// إنشاء يوزر جديد — محمي بالحارسين، فقط super_admin يقدر ينشئ حسابات
+// Admin creates a user directly (active immediately)
 router.post('/register', verifyToken, isSuperAdmin, async (req, res) => {
   try {
     const { name, email, password, account_type } = req.body;
 
-    // تحقق إنه مافي حقل فاضي
     if (!name || !email || !password || !account_type) {
       return res.status(400).json({ message: 'All fields are required' });
     }
 
-    // تحقق إنه نوع الحساب من الأنواع المسموحة بس
     if (!['super_admin', 'company_admin', 'pharmacy_admin'].includes(account_type)) {
       return res.status(400).json({ message: 'Invalid account type' });
     }
 
-    // تحقق إنه الإيميل مش مسجل مسبقاً
-    const [existing] = await pool.query(
-      `SELECT id FROM users WHERE email = ?`, [email]
-    );
+    const [existing] = await pool.query(`SELECT id FROM users WHERE email = ?`, [email]);
     if (existing.length > 0) {
       return res.status(409).json({ message: 'Email already exists' });
     }
 
-    // شفّر الباسورد قبل الحفظ — الـ 10 هي قوة التشفير
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    // احفظ اليوزر الجديد في قاعدة البيانات
     const [result] = await pool.query(
-      `INSERT INTO users (name, email, password, account_type, is_active) 
-       VALUES (?, ?, ?, ?, 1)`, // is_active=1 يعني الحساب فعال تلقائياً
+      `INSERT INTO users (name, email, password, account_type, is_active) VALUES (?, ?, ?, ?, 1)`,
       [name, email, hashedPassword, account_type]
     );
 
-    res.status(201).json({ 
-      message: 'User created successfully', 
-      userId: result.insertId // رجّع id اليوزر الجديد
-    });
+    res.status(201).json({ message: 'User created successfully', userId: result.insertId });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// تسجيل طلب حساب جديد — مفتوح للعموم، يحتاج موافقة الأدمن
+// Public registration — saves into pending_requests awaiting admin approval
 router.post('/public-register', async (req, res) => {
   try {
-    const { name, email, password, account_type, phone, entity_name } = req.body;
+    const { name, email, password, account_type, phone, company_name } = req.body;
 
-    if (!name || !email || !password || !account_type || !phone || !entity_name) {
+    if (!name || !email || !password || !account_type || !phone || !company_name) {
       return res.status(400).json({ message: 'All fields are required' });
     }
 
@@ -106,18 +118,19 @@ router.post('/public-register', async (req, res) => {
       return res.status(400).json({ message: 'Password must be at least 6 characters' });
     }
 
-    const [existing] = await pool.query(`SELECT id FROM users WHERE email = ?`, [email]);
-    if (existing.length > 0) {
+    const [existingUser] = await pool.query(`SELECT id FROM users WHERE email = ?`, [email]);
+    if (existingUser.length > 0) {
       return res.status(409).json({ message: 'Email already registered' });
+    }
+    const [existingPending] = await pool.query(`SELECT id FROM pending_requests WHERE email = ?`, [email]);
+    if (existingPending.length > 0) {
+      return res.status(409).json({ message: 'A pending request with this email already exists' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    // is_active=0 يعني الحساب معلق حتى يوافق الأدمن
     await pool.query(
-      `INSERT INTO users (name, email, password, account_type, phone, entity_name, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, 0)`,
-      [name, email, hashedPassword, account_type, phone, entity_name]
+      `INSERT INTO pending_requests (full_name, email, password, account_type, phone, company_name) VALUES (?, ?, ?, ?, ?, ?)`,
+      [name, email, hashedPassword, account_type, phone, company_name]
     );
 
     res.status(201).json({
@@ -128,38 +141,125 @@ router.post('/public-register', async (req, res) => {
   }
 });
 
-// تسجيل الدخول — مفتوح للكل بدون حراس
+// Get all pending requests — super admin only
+router.get('/pending', verifyToken, isSuperAdmin, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, full_name, email, phone, account_type, company_name, created_at
+       FROM pending_requests ORDER BY created_at DESC`
+    );
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Approve a pending request — moves user to active users, sends email
+router.post('/approve/:id', verifyToken, isSuperAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [rows] = await pool.query(`SELECT * FROM pending_requests WHERE id = ?`, [id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'Pending request not found' });
+    }
+    const request = rows[0];
+
+    const [existing] = await pool.query(`SELECT id FROM users WHERE email = ?`, [request.email]);
+    if (existing.length > 0) {
+      return res.status(409).json({ message: 'Email already exists in users' });
+    }
+
+    await pool.query(
+      `INSERT INTO users (name, email, password, account_type, phone, entity_name, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)`,
+      [request.full_name, request.email, request.password, request.account_type, request.phone, request.company_name]
+    );
+
+    await pool.query(`DELETE FROM pending_requests WHERE id = ?`, [id]);
+
+    await sendMail(
+      request.email,
+      'Your PharmaPridge Account Has Been Approved ✅',
+      `
+        <div style="font-family:sans-serif;max-width:600px;margin:auto">
+          <h2 style="color:#16a34a">Welcome to PharmaPridge!</h2>
+          <p>Dear <strong>${request.full_name}</strong>,</p>
+          <p>Great news — your registration request has been <strong>approved</strong>.</p>
+          <p>You can now log in using your registered email and password.</p>
+          <p style="margin-top:1.5rem">
+            <a href="http://localhost:5173/login"
+               style="background:#16a34a;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600">
+              Login to PharmaPridge
+            </a>
+          </p>
+          <p style="color:#888;font-size:0.85rem;margin-top:2rem">If you didn't request this, please ignore this email.</p>
+        </div>
+      `
+    );
+
+    res.json({ message: 'User approved and activated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Reject a pending request — removes it and notifies user
+router.post('/reject/:id', verifyToken, isSuperAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [rows] = await pool.query(`SELECT * FROM pending_requests WHERE id = ?`, [id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'Pending request not found' });
+    }
+    const request = rows[0];
+
+    await pool.query(`DELETE FROM pending_requests WHERE id = ?`, [id]);
+
+    await sendMail(
+      request.email,
+      'PharmaPridge Registration Update',
+      `
+        <div style="font-family:sans-serif;max-width:600px;margin:auto">
+          <h2 style="color:#dc2626">Registration Update</h2>
+          <p>Dear <strong>${request.full_name}</strong>,</p>
+          <p>We regret to inform you that your registration request for <strong>${request.company_name}</strong> could not be approved at this time.</p>
+          <p>Please contact our support team for further assistance.</p>
+        </div>
+      `
+    );
+
+    res.json({ message: 'Request rejected successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Login
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // تحقق إنه الإيميل والباسورد موجودين
     if (!email || !password) {
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    // دور على اليوزر في قاعدة البيانات
-    const [rows] = await pool.query(
-      `SELECT * FROM users WHERE email = ?`, [email]
-    );
+    const [rows] = await pool.query(`SELECT * FROM users WHERE email = ?`, [email]);
     if (rows.length === 0) {
       return res.status(404).json({ message: 'User not found' });
     }
 
     const user = rows[0];
 
-    // تحقق إنه الحساب مو معطل
     if (user.is_active === 0) {
       return res.status(403).json({ message: 'Account is inactive' });
     }
 
-    // قارن الباسورد المكتوب مع الباسورد المشفر في قاعدة البيانات
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // جيب اسم الصيدلية أو الشركة المرتبطة باليوزر
     let entity_name = null;
     let entity_id = null;
     if (user.account_type === 'pharmacy_admin') {
@@ -176,7 +276,6 @@ router.post('/login', async (req, res) => {
       if (rel.length > 0) { entity_name = rel[0].name; entity_id = rel[0].id; }
     }
 
-    // كل شي تمام — اعمل توكن صالح لـ 8 ساعات
     const token = jwt.sign(
       { id: user.id, account_type: user.account_type },
       process.env.JWT_SECRET,
@@ -186,25 +285,18 @@ router.post('/login', async (req, res) => {
     res.json({
       message: 'Login successful',
       token,
-      user: {
-        id: user.id,
-        name: user.name,
-        account_type: user.account_type,
-        entity_name,
-        entity_id,
-      }
+      user: { id: user.id, name: user.name, account_type: user.account_type, entity_name, entity_id }
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// جلب كل اليوزرات — فقط super_admin
+// Get all active users
 router.get('/', verifyToken, isSuperAdmin, async (req, res) => {
   try {
-    // لاحظ ما حطينا password في الـ SELECT — أمان!
     const [rows] = await pool.query(
-      `SELECT id, name, email, account_type, is_active, created_at FROM users`
+      `SELECT id, name, email, account_type, phone, entity_name, is_active, created_at FROM users`
     );
     res.json(rows);
   } catch (error) {
@@ -212,42 +304,33 @@ router.get('/', verifyToken, isSuperAdmin, async (req, res) => {
   }
 });
 
-// جلب يوزر واحد بالـ id — فقط super_admin
-// مثال: GET /api/users/5 بيجيب اليوزر رقم 5
+// Get single user by id
 router.get('/:id', verifyToken, isSuperAdmin, async (req, res) => {
   try {
-    const { id } = req.params; // ياخد الـ id من الـ URL
+    const { id } = req.params;
     const [rows] = await pool.query(
-      `SELECT id, name, email, account_type, is_active, created_at FROM users WHERE id = ?`, [id]
+      `SELECT id, name, email, account_type, phone, entity_name, is_active, created_at FROM users WHERE id = ?`, [id]
     );
-    if (rows.length === 0) {
-      return res.status(404).json({ message: 'User not found' });
-    }
+    if (rows.length === 0) return res.status(404).json({ message: 'User not found' });
     res.json(rows[0]);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// تحديث يوزر — فقط super_admin
-// مثال: PUT /api/users/5 بيعدل اليوزر رقم 5
+// Update user
 router.put('/:id', verifyToken, isSuperAdmin, async (req, res) => {
   try {
     const { name, email, account_type, is_active, password } = req.body;
     const { id } = req.params;
 
-    // تحقق إنه اليوزر موجود أصلاً
     const [existing] = await pool.query(`SELECT id FROM users WHERE id = ?`, [id]);
-    if (existing.length === 0) {
-      return res.status(404).json({ message: 'User not found' });
-    }
+    if (existing.length === 0) return res.status(404).json({ message: 'User not found' });
 
-    // لو بدو يغير نوع الحساب — تحقق إنه النوع صحيح
     if (account_type && !['super_admin', 'company_admin', 'pharmacy_admin'].includes(account_type)) {
       return res.status(400).json({ message: 'Invalid account type' });
     }
 
-    // لو بعت باسورد جديد — شفّره قبل الحفظ
     if (password) {
       const hashedPassword = await bcrypt.hash(password, 10);
       await pool.query(
@@ -255,7 +338,6 @@ router.put('/:id', verifyToken, isSuperAdmin, async (req, res) => {
         [name, email, account_type, is_active, hashedPassword, id]
       );
     } else {
-      // ما بعت باسورد — حدّث باقي البيانات بس وخلي الباسورد كما هو
       await pool.query(
         `UPDATE users SET name=?, email=?, account_type=?, is_active=? WHERE id=?`,
         [name, email, account_type, is_active, id]
@@ -268,22 +350,17 @@ router.put('/:id', verifyToken, isSuperAdmin, async (req, res) => {
   }
 });
 
-// حذف يوزر — فقط super_admin ومحمي من حذف نفسه
-// مثال: DELETE /api/users/5 بيحذف اليوزر رقم 5
+// Delete user
 router.delete('/:id', verifyToken, isSuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
-    // منع الأدمن من حذف حسابه هو — لو صار ما في أدمن يدير النظام!
     if (parseInt(id) === req.user.id) {
       return res.status(400).json({ message: 'Cannot delete your own account' });
     }
 
-    // تحقق إنه اليوزر موجود أصلاً
     const [existing] = await pool.query(`SELECT id FROM users WHERE id = ?`, [id]);
-    if (existing.length === 0) {
-      return res.status(404).json({ message: 'User not found' });
-    }
+    if (existing.length === 0) return res.status(404).json({ message: 'User not found' });
 
     await pool.query(`DELETE FROM users WHERE id=?`, [id]);
     res.json({ message: 'User deleted successfully' });
@@ -292,4 +369,4 @@ router.delete('/:id', verifyToken, isSuperAdmin, async (req, res) => {
   }
 });
 
-module.exports = router; 
+module.exports = router;
