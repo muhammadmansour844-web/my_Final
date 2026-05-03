@@ -4,6 +4,7 @@ import styles from '../Dashescomp/Dashes.module.css'
 
 const API = 'http://localhost:3000/api/companies'
 const API_ORDERS = 'http://localhost:3000/api/orders'
+const API_UNITS = 'http://localhost:3000/api/unit-types'
 
 function getInitials(name = '') {
   return name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase() || '?'
@@ -22,6 +23,17 @@ function CompanyList() {
   const [saving, setSaving]       = useState(false)
   const [toast, setToast]         = useState(null)
   const [form, setForm]           = useState({ name: '', email: '', phone: '', address: '' })
+
+  // ── Unit Types State ─────────────────────────────────────
+  const [showUnitsModal, setShowUnitsModal] = useState(false)
+  const [unitsCompany, setUnitsCompany]     = useState(null)
+  const [unitTypes, setUnitTypes]           = useState([])
+  const [unitsLoading, setUnitsLoading]     = useState(false)
+  const [newUnitName, setNewUnitName]       = useState('')
+  const [newUnitPieces, setNewUnitPieces]   = useState(1)
+  const [editingUnit, setEditingUnit]       = useState(null)
+  const [editUnitName, setEditUnitName]     = useState('')
+  const [editUnitPieces, setEditUnitPieces] = useState(1)
 
   const token = localStorage.getItem('token')
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
@@ -51,6 +63,77 @@ function CompanyList() {
 
   const ordersForCompany = (id) => orders.filter(o => Number(o.company_id) === Number(id)).length
 
+  // ── Unit Types CRUD ───────────────────────────────────────
+  const fetchUnits = async (companyId) => {
+    setUnitsLoading(true)
+    try {
+      const res = await fetch(`${API_UNITS}/company/${companyId}`, { headers })
+      if (res.ok) setUnitTypes(await res.json())
+    } catch { /* ignore */ }
+    finally { setUnitsLoading(false) }
+  }
+
+  const openUnitsModal = (company) => {
+    setUnitsCompany(company)
+    setUnitTypes([])
+    setShowUnitsModal(true)
+    setNewUnitName('')
+    setNewUnitPieces(1)
+    setEditingUnit(null)
+    fetchUnits(company.id)
+  }
+
+  const handleAddUnit = async () => {
+    if (!newUnitName.trim() || newUnitPieces < 1) return
+    try {
+      const res = await fetch(API_UNITS, {
+        method: 'POST', headers,
+        body: JSON.stringify({ company_id: unitsCompany.id, name: newUnitName.trim(), pieces_per_unit: parseInt(newUnitPieces) })
+      })
+      if (res.ok) {
+        showToast('Unit type added')
+        setNewUnitName(''); setNewUnitPieces(1)
+        fetchUnits(unitsCompany.id)
+      } else {
+        const data = await res.json()
+        showToast(data.message || 'Failed to add', 'error')
+      }
+    } catch { showToast('Network error', 'error') }
+  }
+
+  const handleUpdateUnit = async (unitId) => {
+    if (!editUnitName.trim() || editUnitPieces < 1) return
+    try {
+      const res = await fetch(`${API_UNITS}/${unitId}`, {
+        method: 'PUT', headers,
+        body: JSON.stringify({ name: editUnitName.trim(), pieces_per_unit: parseInt(editUnitPieces) })
+      })
+      if (res.ok) {
+        showToast('Unit type updated')
+        setEditingUnit(null)
+        fetchUnits(unitsCompany.id)
+      } else {
+        const data = await res.json()
+        showToast(data.message || 'Update failed', 'error')
+      }
+    } catch { showToast('Network error', 'error') }
+  }
+
+  const handleDeleteUnit = async (unitId) => {
+    if (!window.confirm('Delete this unit type?')) return
+    try {
+      const res = await fetch(`${API_UNITS}/${unitId}`, { method: 'DELETE', headers })
+      if (res.ok) {
+        showToast('Unit type deleted')
+        fetchUnits(unitsCompany.id)
+      } else {
+        const data = await res.json()
+        showToast(data.message || 'Delete failed', 'error')
+      }
+    } catch { showToast('Network error', 'error') }
+  }
+
+  // ── Company CRUD ──────────────────────────────────────────
   const openAdd = () => {
     setEditing(null)
     setForm({ name: '', email: '', phone: '', address: '' })
@@ -192,6 +275,20 @@ function CompanyList() {
                     </td>
                     <td style={{ padding: '1rem' }}>
                       <div style={{ display: 'flex', gap: '6px' }}>
+                        <button
+                          onClick={() => openUnitsModal(c)}
+                          title="Manage Unit Types"
+                          style={{
+                            padding: '5px 10px', borderRadius: '8px', border: '1.5px solid #8b5cf6',
+                            background: 'rgba(139,92,246,0.08)', color: '#8b5cf6', cursor: 'pointer',
+                            fontWeight: 700, fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '4px',
+                            transition: 'all 0.2s',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(139,92,246,0.18)' }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(139,92,246,0.08)' }}
+                        >
+                          📦 Units
+                        </button>
                         <button className={`${styles.actionBtn} ${styles.actionBtnEdit}`} onClick={() => openEdit(c)} title="Edit">✏️</button>
                         <button className={`${styles.actionBtn} ${styles.actionBtnDelete}`} onClick={() => handleDelete(c.id)} title="Delete">🗑️</button>
                       </div>
@@ -247,6 +344,181 @@ function CompanyList() {
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* ── Unit Types Modal ────────────────────────────────── */}
+      {showUnitsModal && unitsCompany && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          animation: 'fadeIn 0.2s ease',
+        }} onClick={() => setShowUnitsModal(false)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: '#fff', borderRadius: '20px', width: '100%', maxWidth: 520,
+            maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
+            boxShadow: '0 25px 60px rgba(0,0,0,0.18)',
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '1.5rem 1.75rem 1rem',
+              borderBottom: '1px solid #f1f5f9',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
+                  📦 Unit Types
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#64748b' }}>
+                  Manage unit types for <strong style={{ color: '#8b5cf6' }}>{unitsCompany.name}</strong>
+                </p>
+              </div>
+              <button
+                onClick={() => setShowUnitsModal(false)}
+                style={{ background: '#f1f5f9', border: 'none', borderRadius: '10px', width: 36, height: 36, fontSize: '1.1rem', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >✕</button>
+            </div>
+
+            {/* Add New Unit */}
+            <div style={{ padding: '1rem 1.75rem', borderBottom: '1px solid #f1f5f9', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <input
+                type="text"
+                placeholder="e.g. كرتونة، حبة، شريط..."
+                value={newUnitName}
+                onChange={e => setNewUnitName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleAddUnit()}
+                style={{
+                  flex: 1, padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: '10px',
+                  fontSize: '0.85rem', outline: 'none', background: '#f8fafc',
+                }}
+                onFocus={e => e.target.style.borderColor = '#8b5cf6'}
+                onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+              />
+              <input
+                type="number" min="1" placeholder="Pcs"
+                value={newUnitPieces}
+                onChange={e => setNewUnitPieces(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleAddUnit()}
+                style={{
+                  width: 75, padding: '10px 10px', border: '1.5px solid #e2e8f0', borderRadius: '10px',
+                  fontSize: '0.85rem', outline: 'none', background: '#f8fafc', textAlign: 'center',
+                }}
+                onFocus={e => e.target.style.borderColor = '#8b5cf6'}
+                onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+              />
+              <button
+                onClick={handleAddUnit}
+                disabled={!newUnitName.trim()}
+                style={{
+                  padding: '10px 20px', borderRadius: '10px', border: 'none',
+                  background: newUnitName.trim() ? '#8b5cf6' : '#e2e8f0',
+                  color: newUnitName.trim() ? '#fff' : '#94a3b8',
+                  fontWeight: 700, fontSize: '0.82rem', cursor: newUnitName.trim() ? 'pointer' : 'not-allowed',
+                  transition: 'all 0.2s', whiteSpace: 'nowrap',
+                }}
+              >+ Add</button>
+            </div>
+
+            {/* Unit Types List */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem 1.75rem 1.5rem' }}>
+              {unitsLoading ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>
+                  <div style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid #e2e8f0', borderTopColor: '#8b5cf6', animation: 'spin 0.8s linear infinite', margin: '0 auto 0.75rem' }} />
+                  Loading...
+                </div>
+              ) : unitTypes.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: '#94a3b8' }}>
+                  <span style={{ fontSize: '2rem' }}>📭</span>
+                  <p style={{ margin: '0.5rem 0 0', fontWeight: 600, fontSize: '0.9rem' }}>No unit types yet</p>
+                  <p style={{ margin: '4px 0 0', fontSize: '0.78rem' }}>Add unit types like كرتونة، حبة، ورقة...</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {unitTypes.map((unit, i) => (
+                    <div key={unit.id} style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '0.75rem 1rem', borderRadius: '12px',
+                      background: '#f8fafc', border: '1px solid #f1f5f9',
+                    }}>
+                      {editingUnit === unit.id ? (
+                        <div style={{ display: 'flex', gap: '0.4rem', flex: 1, alignItems: 'center' }}>
+                          <input
+                            autoFocus
+                            value={editUnitName}
+                            onChange={e => setEditUnitName(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleUpdateUnit(unit.id)
+                              if (e.key === 'Escape') setEditingUnit(null)
+                            }}
+                            style={{
+                              flex: 1, padding: '6px 10px', border: '1.5px solid #8b5cf6',
+                              borderRadius: '8px', fontSize: '0.85rem', outline: 'none',
+                            }}
+                          />
+                          <input
+                            type="number" min="1"
+                            value={editUnitPieces}
+                            onChange={e => setEditUnitPieces(e.target.value)}
+                            style={{
+                              width: 65, padding: '6px 8px', border: '1.5px solid #8b5cf6',
+                              borderRadius: '8px', fontSize: '0.85rem', outline: 'none', textAlign: 'center',
+                            }}
+                          />
+                          <button
+                            onClick={() => handleUpdateUnit(unit.id)}
+                            style={{ padding: '6px 12px', borderRadius: '8px', border: 'none', background: '#8b5cf6', color: '#fff', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer' }}
+                          >Save</button>
+                          <button
+                            onClick={() => setEditingUnit(null)}
+                            style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '0.78rem', cursor: 'pointer' }}
+                          >Cancel</button>
+                        </div>
+                      ) : (
+                        <>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <span style={{
+                              width: 28, height: 28, borderRadius: '8px',
+                              background: 'rgba(139,92,246,0.12)', color: '#8b5cf6',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: '0.75rem', fontWeight: 800,
+                            }}>{i + 1}</span>
+                            <span style={{ fontWeight: 600, color: '#0f172a', fontSize: '0.9rem' }}>{unit.name}</span>
+                            <span style={{
+                              background: '#f0fdf4', color: '#15803d', padding: '2px 8px',
+                              borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700,
+                            }}>{unit.pieces_per_unit} pcs</span>
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.35rem' }}>
+                            <button
+                              onClick={() => { setEditingUnit(unit.id); setEditUnitName(unit.name); setEditUnitPieces(unit.pieces_per_unit) }}
+                              title="Edit"
+                              style={{ padding: '5px 8px', borderRadius: '7px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', fontSize: '0.75rem' }}
+                            >✏️</button>
+                            <button
+                              onClick={() => handleDeleteUnit(unit.id)}
+                              title="Delete"
+                              style={{ padding: '5px 8px', borderRadius: '7px', border: '1px solid #fecaca', background: '#fef2f2', cursor: 'pointer', fontSize: '0.75rem' }}
+                            >🗑️</button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            {unitTypes.length > 0 && (
+              <div style={{
+                padding: '0.75rem 1.75rem', borderTop: '1px solid #f1f5f9',
+                background: '#fafafa', fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600,
+              }}>
+                {unitTypes.length} unit type{unitTypes.length !== 1 ? 's' : ''} configured
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {toast && (
