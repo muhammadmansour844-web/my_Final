@@ -4,25 +4,18 @@ import {
   FiGrid,
   FiPackage,
   FiShoppingBag,
-  FiTruck,
-  FiLayers,
-  FiTag,
-  FiBarChart2,
   FiSettings,
   FiShoppingCart,
-  FiUser,
   FiLogOut,
   FiPlusSquare,
 } from 'react-icons/fi'
 import shell from '../styles/PharmaDashboardShell.module.css'
 
 const NAV = [
+  { id: 'dashboard', label: 'Dashboard', Icon: FiGrid },
   { id: 'products', label: 'Products', Icon: FiPackage },
   { id: 'cart', label: 'Cart', Icon: FiShoppingCart },
   { id: 'my_orders', label: 'My Orders', Icon: FiShoppingBag },
-  { id: 'promotions', label: 'Promotions', Icon: FiTag },
-  { id: 'reports', label: 'Reports', Icon: FiBarChart2 },
-  { id: 'dashboard', label: 'Dashboard', Icon: FiGrid },
   { id: 'settings', label: 'Settings', Icon: FiSettings },
 ]
 
