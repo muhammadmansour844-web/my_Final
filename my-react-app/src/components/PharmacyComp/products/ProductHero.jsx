@@ -14,11 +14,18 @@ export default function ProductHero({ product }) {
     const [unitType, setUnitType] = useState('single');
     const [loading, setLoading] = useState(false);
 
-    const unitsPerPackage = parseInt(product.units_per_package) || 1;
-    const packageLabel = product.unit_type || 'Unit';
-    const hasPackageOption = unitsPerPackage > 1;
     const [toast, setToast] = useState(null);
+    const [selectedVariant, setSelectedVariant] = useState(
+      product.variants && product.variants.length > 0 ? product.variants[0] : null
+    )
     const [timeLeftStr, setTimeLeftStr] = useState('');
+
+    const hasVariants = product.variants && product.variants.length > 0
+    const activeVariant = selectedVariant || (hasVariants ? product.variants[0] : null)
+    const unitsPerPackage = activeVariant ? parseInt(activeVariant.pieces_per_unit) || 1 : parseInt(product.units_per_package) || 1
+    const packageLabel = activeVariant ? (activeVariant.unit_type || 'Unit') : (product.unit_type || 'Unit')
+    const variantStock = activeVariant ? activeVariant.stock_quantity : product.stock_quantity
+    const hasPackageOption = unitsPerPackage > 1
 
     useEffect(() => {
         if (!product.discount_percentage || product.discount_percentage <= 0) return;
@@ -90,8 +97,8 @@ export default function ProductHero({ product }) {
     };
 
     // الحد الأقصى: لو وضع كرتون = عدد الكراتين في المخزون، لو حبة = عدد الحبات
-    const totalUnits = product.stock_quantity * unitsPerPackage;
-    const maxQty = isPackageMode ? product.stock_quantity : totalUnits;
+    const totalUnits = variantStock * unitsPerPackage
+    const maxQty = isPackageMode ? variantStock : totalUnits
     const decreaseQty = () => setQuantity(q => Math.max(1, q - 1));
     const increaseQty = () => setQuantity(q => Math.min(maxQty, q + 1));
 
@@ -121,7 +128,11 @@ export default function ProductHero({ product }) {
             const addRes = await fetch(`${API_CARTS}/${cartId}/items`, {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({ product_id: product.id, quantity: effectiveQty })
+                body: JSON.stringify({
+                  product_id: product.id,
+                  quantity: effectiveQty,
+                  ...(activeVariant ? { variant_id: activeVariant.id, variant_pieces: activeVariant.pieces_per_unit } : {})
+                })
             });
 
             const result = await addRes.json();
@@ -216,7 +227,7 @@ export default function ProductHero({ product }) {
                             borderRadius: '10px', padding: '7px 16px',
                         }}>
                             📦 In Stock:{' '}
-                            <strong>{product.stock_quantity.toLocaleString()}</strong>{' '}
+                            <strong>{variantStock.toLocaleString()}</strong>{' '}
                             {packageLabel}{product.stock_quantity !== 1 ? 's' : ''}
                             {unitsPerPackage > 1 && (
                                 <span style={{ fontWeight: 600, color: '#047857', fontSize: '0.85rem' }}>
@@ -225,6 +236,44 @@ export default function ProductHero({ product }) {
                             )}
                         </span>
                     </div>
+
+                    {/* Variant Selector */}
+                    {hasVariants && (
+                      <div style={{ marginBottom: '12px' }}>
+                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+                          SELECT PACKAGING
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                          {product.variants.map(v => {
+                            const isActive = activeVariant?.id === v.id
+                            const varOOS = v.stock_quantity <= 0
+                            return (
+                              <button
+                                key={v.id}
+                                type="button"
+                                onClick={() => { if (!varOOS) { setSelectedVariant(v); setQuantity(1); setUnitType('single') } }}
+                                disabled={varOOS}
+                                style={{
+                                  padding: '6px 14px', borderRadius: '20px',
+                                  border: `2px solid ${isActive ? '#013223' : varOOS ? '#e2e8f0' : '#d1fae5'}`,
+                                  background: isActive ? '#013223' : varOOS ? '#f9fafb' : '#f0fdf4',
+                                  color: isActive ? '#fff' : varOOS ? '#9ca3af' : '#065f46',
+                                  fontWeight: 700, fontSize: '0.8rem',
+                                  cursor: varOOS ? 'not-allowed' : 'pointer',
+                                  opacity: varOOS ? 0.6 : 1,
+                                  transition: 'all 0.15s',
+                                }}
+                              >
+                                {v.unit_type}
+                                <span style={{ marginLeft: '6px', fontSize: '0.7rem', opacity: 0.75 }}>
+                                  {varOOS ? '(Out of stock)' : `(${v.stock_quantity} avail)`}
+                                </span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Unit mode selector */}
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
@@ -343,10 +392,10 @@ export default function ProductHero({ product }) {
                         <button
                             className={styles.addToCartBtn}
                             onClick={handleAddToCart}
-                            disabled={product.stock_quantity <= 0 || loading || (isPackageMode ? quantity > product.stock_quantity : effectiveQty > totalUnits)}
+                            disabled={variantStock <= 0 || loading || (isPackageMode ? quantity > variantStock : effectiveQty > totalUnits)}
                         >
                             <FiShoppingCart />
-                            {loading ? 'Adding...' : product.stock_quantity <= 0 ? 'OUT OF STOCK' : 'ADD TO CART'}
+                            {loading ? 'Adding...' : variantStock <= 0 ? 'OUT OF STOCK' : 'ADD TO CART'}
                         </button>
 
                         <button
