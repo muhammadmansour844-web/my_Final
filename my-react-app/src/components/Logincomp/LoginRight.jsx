@@ -37,22 +37,24 @@ function LoginRight() {
       localStorage.setItem('token', data.token)
       localStorage.setItem('account_type', data.user.account_type)
       localStorage.setItem('user_name', data.user.name)
+      localStorage.setItem('user_id', data.user.id)
 
       // احفظ اسم الكيان المرتبط (صيدلية أو شركة)
-      if (data.user.entity_name) {
-        if (data.user.account_type === 'pharmacy_admin') {
-          localStorage.setItem('pharmacy_display_name', data.user.entity_name)
-          localStorage.setItem('pharmacy_id', data.user.entity_id)
-        } else if (data.user.account_type === 'company_admin') {
-          localStorage.setItem('company_display_name', data.user.entity_name)
-          localStorage.setItem('company_id', data.user.entity_id)
-        }
+      if (data.user.account_type === 'pharmacy_admin') {
+        if (data.user.entity_name) localStorage.setItem('pharmacy_display_name', data.user.entity_name)
+        if (data.user.entity_id)   localStorage.setItem('pharmacy_id', data.user.entity_id)
+      } else if (data.user.account_type === 'company_admin') {
+        if (data.user.entity_name) localStorage.setItem('company_display_name', data.user.entity_name)
+        if (data.user.entity_id)   localStorage.setItem('company_id', data.user.entity_id)
+      } else if (data.user.account_type === 'delivery_admin') {
+        if (data.user.entity_name) localStorage.setItem('entity_name', data.user.entity_name)
       }
 
       // وجّه حسب نوع الحساب
       if (data.user.account_type === 'super_admin') navigate('/admin')
       else if (data.user.account_type === 'pharmacy_admin') navigate('/pharmacy-dashboard')
       else if (data.user.account_type === 'company_admin') navigate('/company')
+      else if (data.user.account_type === 'delivery_admin') navigate('/delivery-dashboard')
       else navigate('/login')
 
     } catch (err) {
@@ -77,6 +79,7 @@ function LoginRight() {
             placeholder="example@email.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
           />
         </div>
 
@@ -88,6 +91,7 @@ function LoginRight() {
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
             />
           </div>
         </div>
@@ -103,8 +107,6 @@ function LoginRight() {
         </button>
 
         <a href="/" className={styles.loginBack}>← Back to home</a>
-
-        {/* Quick Testing buttons removed because they bypass auth and cause bugs */}
       </div>
     </div>
   )
