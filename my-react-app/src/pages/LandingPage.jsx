@@ -4,7 +4,7 @@ import Landingmain from '../components/Landingcomp/Landingmain.jsx'
 import Landingfooter from '../components/Landingcomp/Landingfooter.jsx'
 function LandingPage() {
   return (
-    <div>
+    <div style={{ background: '#f8fafc', minHeight: '100vh' }}>
         <Landingheader/>
         <Landingmain/>
         <Landingfooter/>
