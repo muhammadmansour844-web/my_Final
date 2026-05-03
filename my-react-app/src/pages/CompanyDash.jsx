@@ -5,6 +5,7 @@ import DashHeader from '../components/Dashescomp/DashHeader'
 import ProductManager from '../components/Companycomp/ProductManager'
 import CompanyOrders from '../components/Companycomp/CompanyOrders'
 import CompanyOverview from '../components/Companycomp/CompanyOverview'
+import PaymentSummary from '../components/Companycomp/PaymentSummary'
 import styles from '../components/Dashescomp/Dashes.module.css'
 
 const tabTitles = {
@@ -12,25 +13,23 @@ const tabTitles = {
   products: { title: 'Product Management', breadcrumb: 'Company → Products' },
   my_products: { title: 'My Products', breadcrumb: 'Company → My Products' },
   incoming_orders: { title: 'Incoming Orders', breadcrumb: 'Company → Incoming Orders' },
-  reports: { title: 'Reports', breadcrumb: 'Company → Reports' },
+  reports: { title: 'Payment Summary', breadcrumb: 'Company → Payments' },
   settings: { title: 'Settings', breadcrumb: 'Company → Settings' },
 }
 
 function CompanyDash() {
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState('incoming_orders')
+  const [activeTab, setActiveTab] = useState('dashboard')
   const current = tabTitles[activeTab] || tabTitles.dashboard
   const userName = localStorage.getItem('user_name') || 'Company'
   const accountType = localStorage.getItem('account_type')
 
   useEffect(() => {
-    if (!accountType) {
-      navigate('/login')
-    } else if (accountType === 'pharmacy_admin') {
-      navigate('/pharmacy-dashboard')
-    } else if (accountType === 'super_admin') {
-      navigate('/admin')
-    }
+    if (!accountType) navigate('/login')
+    else if (accountType === 'super_admin') navigate('/admin')
+    else if (accountType === 'pharmacy_admin') navigate('/pharmacy-dashboard')
+    else if (accountType === 'delivery_admin') navigate('/delivery-dashboard')
+    else if (accountType !== 'company_admin') navigate('/login')
   }, [accountType, navigate])
 
   if (accountType !== 'company_admin') {
@@ -54,9 +53,10 @@ function CompanyDash() {
             onAddProduct={() => setActiveTab('my_products')} 
             onViewOrders={() => setActiveTab('incoming_orders')} 
           />}
-          {(activeTab === 'products' || activeTab === 'my_products') && <ProductManager />}
-          {(activeTab === 'orders' || activeTab === 'incoming_orders') && <CompanyOrders />}
-          {['reports', 'settings'].includes(activeTab) && (
+          {activeTab === 'my_products' && <ProductManager />}
+          {activeTab === 'incoming_orders' && <CompanyOrders />}
+          {activeTab === 'reports' && <PaymentSummary />}
+          {activeTab === 'settings' && (
             <div style={{ textAlign: 'center', marginTop: '5rem', color: '#8b9d94' }}>
               <h2>Coming Soon</h2>
               <p>This module is under development.</p>
