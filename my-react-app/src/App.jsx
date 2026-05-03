@@ -8,6 +8,7 @@ import PharmacyDash from './pages/PharmacyDash'
 import PaymentPage from './pages/PaymentPage'
 import ProductDetailLayout from './components/PharmacyComp/products/ProductDetailLayout'
 import ProductBrowsingLayout from './components/PharmacyComp/products/ProductBrowsingLayout'
+import DeliveryDash from './pages/DeliveryDash'
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
         <Route path="/payment" element={<PaymentPage />} />
         <Route path="/product-details" element={<ProductDetailLayout />} />
         <Route path="/product-browsing" element={<ProductBrowsingLayout />} />
+        <Route path="/delivery-dashboard" element={<DeliveryDash />} />
       </Routes>
 
   )
