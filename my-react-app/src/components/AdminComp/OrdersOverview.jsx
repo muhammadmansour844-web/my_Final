@@ -7,13 +7,14 @@ const STATUS_META = {
   pending:   { label: 'Pending',   bg: '#fff7ed', color: '#c2410c', dot: '#f97316' },
   approved:  { label: 'Approved',  bg: '#eff6ff', color: '#1d4ed8', dot: '#3b82f6' },
   shipped:   { label: 'Shipped',   bg: '#f5f3ff', color: '#7c3aed', dot: '#8b5cf6' },
-  delivered: { label: 'Delivered', bg: '#f0fdf4', color: '#15803d', dot: '#22c55e' },
+  delivered: { label: 'Delivered', bg: '#fefce8', color: '#854d0e', dot: '#eab308' },
+  completed: { label: 'Confirmed', bg: '#f0fdf4', color: '#15803d', dot: '#22c55e' },
   rejected:  { label: 'Rejected',  bg: '#fef2f2', color: '#b91c1c', dot: '#ef4444' },
   cancelled: { label: 'Cancelled', bg: '#f9fafb', color: '#6b7280', dot: '#9ca3af' },
   all:       { label: 'All',       bg: '#f8fafc', color: '#334155', dot: '#94a3b8' },
 }
 
-const TABS = ['pending', 'approved', 'shipped', 'delivered', 'rejected', 'cancelled', 'all']
+const TABS = ['pending', 'approved', 'shipped', 'delivered', 'completed', 'rejected', 'cancelled', 'all']
 
 const statusBadge = (status) => {
   const meta = STATUS_META[status] || STATUS_META.all
