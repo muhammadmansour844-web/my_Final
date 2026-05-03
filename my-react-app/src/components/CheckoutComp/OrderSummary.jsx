@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { FaCreditCard, FaBuilding, FaShieldAlt, FaArrowRight } from 'react-icons/fa';
 
-const OrderSummary = ({ subtotal, taxRate = 0.05, onPlaceOrder, isProcessing }) => {
+const OrderSummary = ({ subtotal, taxRate = 0.17, onPlaceOrder, isProcessing }) => {
   const [promoCode, setPromoCode] = useState('PHARMA24');
   
   const deliveryFee = 0; // FREE
@@ -33,7 +33,7 @@ const OrderSummary = ({ subtotal, taxRate = 0.05, onPlaceOrder, isProcessing }) 
       </div>
 
       {/* Promotion Code */}
-      <div className="mb-6">
+      <div className="mb-6"> 
         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
           Promotion Code
         </label>
