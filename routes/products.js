@@ -5,6 +5,16 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
+pool.query(`CREATE TABLE IF NOT EXISTS product_unit_variants (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  product_id INT NOT NULL,
+  unit_type VARCHAR(100) NOT NULL,
+  pieces_per_unit INT NOT NULL DEFAULT 1,
+  stock_quantity INT NOT NULL DEFAULT 0,
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+  UNIQUE KEY unique_product_unit (product_id, unit_type)
+)`).catch(() => {});
+
 const router = express.Router();
 
 // ===== Upload Config =====
@@ -84,6 +94,21 @@ async function getCompanyId(userId) {
   return relation.length > 0 ? relation[0].company_id : null;
 }
 
+async function attachVariants(products) {
+  if (products.length === 0) return products;
+  const ids = products.map(p => p.id);
+  const [variants] = await pool.query(
+    `SELECT * FROM product_unit_variants WHERE product_id IN (?) ORDER BY product_id, pieces_per_unit ASC`,
+    [ids]
+  );
+  const map = {};
+  variants.forEach(v => {
+    if (!map[v.product_id]) map[v.product_id] = [];
+    map[v.product_id].push({ id: v.id, unit_type: v.unit_type, pieces_per_unit: v.pieces_per_unit, stock_quantity: v.stock_quantity });
+  });
+  return products.map(p => ({ ...p, variants: map[p.id] || [] }));
+}
+
 // ===== Routes =====
 
 // POST /api/products — إضافة منتج (JSON)
@@ -118,6 +143,18 @@ router.post('/', verifyToken, isCompanyAdmin, async (req, res) => {
        has_expiry || 0, expiry_date || null, discount_percentage || 0, promotion_end_date || null,
        unit_type || 'Unit', parseInt(units_per_package) || 1]
     );
+
+    // Save unit variants if provided
+    const variants = req.body.variants;
+    if (Array.isArray(variants) && variants.length > 0) {
+      for (const v of variants) {
+        if (!v.unit_type) continue;
+        await pool.query(
+          `INSERT IGNORE INTO product_unit_variants (product_id, unit_type, pieces_per_unit, stock_quantity) VALUES (?, ?, ?, ?)`,
+          [result.insertId, v.unit_type, parseInt(v.pieces_per_unit) || 1, parseInt(v.stock_quantity) || 0]
+        );
+      }
+    }
 
     res.status(201).json({ message: 'Product created successfully', productId: result.insertId });
   } catch (error) {
@@ -212,7 +249,7 @@ router.get('/', verifyToken, isAuthenticated, async (req, res) => {
     } else {
       [rows] = await pool.query(`SELECT * FROM products`);
     }
-    res.json(await attachImages(rows));
+    res.json(await attachVariants(await attachImages(rows)));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -232,7 +269,7 @@ router.get('/:id', verifyToken, isAuthenticated, async (req, res) => {
       }
     }
 
-    const [product] = await attachImages(rows);
+    const [product] = await attachVariants(await attachImages(rows));
     res.json(product);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -271,6 +308,18 @@ router.put('/:id', verifyToken, isCompanyAdmin, async (req, res) => {
        unit_type || existing[0].unit_type || 'Unit',
        parseInt(units_per_package) || existing[0].units_per_package || 1, id]
     );
+
+    // Update unit variants if provided
+    if (Array.isArray(req.body.variants)) {
+      await pool.query(`DELETE FROM product_unit_variants WHERE product_id = ?`, [id]);
+      for (const v of req.body.variants) {
+        if (!v.unit_type) continue;
+        await pool.query(
+          `INSERT IGNORE INTO product_unit_variants (product_id, unit_type, pieces_per_unit, stock_quantity) VALUES (?, ?, ?, ?)`,
+          [id, v.unit_type, parseInt(v.pieces_per_unit) || 1, parseInt(v.stock_quantity) || 0]
+        );
+      }
+    }
 
     res.json({ message: 'Product updated successfully' });
   } catch (error) {
