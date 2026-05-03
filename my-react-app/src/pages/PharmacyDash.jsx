@@ -25,8 +25,9 @@ const tabMeta = {
 function PharmacyDash() {
   const location = useLocation()
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState(location.state?.tab || 'products')
+  const [activeTab, setActiveTab] = useState(location.state?.tab || 'dashboard')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const accountType = localStorage.getItem('account_type')
 
   const [cartItems, setCartItems] = useState([])
   const [cartId, setCartId] = useState(null)
@@ -48,6 +49,14 @@ function PharmacyDash() {
   }
 
   useEffect(() => {
+    if (!accountType) navigate('/login')
+    else if (accountType === 'super_admin') navigate('/admin')
+    else if (accountType === 'company_admin') navigate('/company')
+    else if (accountType === 'delivery_admin') navigate('/delivery-dashboard')
+    else if (accountType !== 'pharmacy_admin') navigate('/login')
+  }, [accountType, navigate])
+
+  useEffect(() => {
     const fetchCart = async () => {
       try {
         const res = await fetch(API_CARTS, { headers })
@@ -67,10 +76,16 @@ function PharmacyDash() {
         console.error('Failed to fetch cart:', err)
       }
     }
-    fetchCart()
-  }, [])
+    if (accountType === 'pharmacy_admin') {
+      fetchCart()
+    }
+  }, [accountType])
 
-  const handleAddToCart = async (product) => {
+  if (accountType !== 'pharmacy_admin') {
+    return null
+  }
+
+  const handleAddToCart = async (product, quantity = 1) => {
     // Always get a fresh active cart — avoids stale cartId after checkout
     let activeCartId = null
     try {
@@ -103,19 +118,17 @@ function PharmacyDash() {
       }
     }
 
-    await addItemToCart(activeCartId, product)
+    await addItemToCart(activeCartId, product, quantity)
   }
 
-  const addItemToCart = async (cId, product) => {
+  const addItemToCart = async (cId, product, quantity = 1) => {
     try {
-      console.log('[Cart] Adding item:', { cartId: cId, productId: product.id })
       const res = await fetch(`${API_CARTS}/${cId}/items`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ product_id: product.id, quantity: 1 }),
+        body: JSON.stringify({ product_id: product.id, quantity }),
       })
       const data = await res.json()
-      console.log('[Cart] Response:', res.status, data)
       if (res.ok) {
         showToast(`${product.name} added to cart!`)
         refreshCartItems(cId)
@@ -179,9 +192,10 @@ function PharmacyDash() {
     }
   }
 
-  const handleCheckout = () => {
-    if (!cartId || cartItems.length === 0) return
-    navigate('/payment', { state: { cartItems, cartId } })
+  const handleCheckout = (selectedItems) => {
+    const itemsToCheckout = selectedItems && selectedItems.length > 0 ? selectedItems : cartItems
+    if (!cartId || itemsToCheckout.length === 0) return
+    navigate('/payment', { state: { cartItems: itemsToCheckout, cartId } })
   }
 
   const current = tabMeta[activeTab] || tabMeta.dashboard
