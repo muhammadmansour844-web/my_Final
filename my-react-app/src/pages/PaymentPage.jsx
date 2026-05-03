@@ -15,7 +15,7 @@ function PaymentPage() {
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
 
   const subtotal = cartItems.reduce((sum, item) => sum + parseFloat(item.price) * item.quantity, 0)
-  const tax = subtotal * 0.05
+  const tax = subtotal * 0.17
   const total = subtotal + tax
 
   const handlePlaceOrder = async () => {
@@ -70,7 +70,11 @@ function PaymentPage() {
           <h2 style={{ fontSize: '1.1rem', fontWeight: 800, margin: '0 0 1.25rem', color: '#0f172a' }}>Order Items</h2>
           {cartItems.map((item, idx) => (
             <div key={item.id || idx} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.85rem 0', borderBottom: '1px solid #f1f5f9' }}>
-              <div style={{ width: 48, height: 48, borderRadius: '10px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', flexShrink: 0 }}>💊</div>
+              <div style={{ width: 48, height: 48, borderRadius: '10px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', flexShrink: 0, overflow: 'hidden' }}>
+                {item.image
+                  ? <img src={`http://localhost:3000/uploads/products/${item.image}`} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : '💊'}
+              </div>
               <div style={{ flex: 1 }}>
                 <p style={{ margin: 0, fontWeight: 600, color: '#0f172a', fontSize: '0.9rem' }}>{item.name}</p>
                 <p style={{ margin: '0.2rem 0 0', color: '#64748b', fontSize: '0.78rem' }}>Qty: {item.quantity} × ${parseFloat(item.price).toFixed(2)}</p>
@@ -94,7 +98,7 @@ function PaymentPage() {
               <span style={{ fontWeight: 700, color: '#16a34a' }}>FREE</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Tax (5%)</span>
+              <span>Tax (17%)</span>
               <span style={{ fontWeight: 600, color: '#0f172a' }}>${tax.toFixed(2)}</span>
             </div>
           </div>
