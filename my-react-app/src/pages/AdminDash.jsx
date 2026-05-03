@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Sidebar from '../components/Dashescomp/Sidebar'
 import DashHeader from '../components/Dashescomp/DashHeader'
 import AdminOverview from '../components/AdminComp/AdminOverview'
@@ -8,6 +9,9 @@ import PharmacyList from '../components/AdminComp/PharmacyList'
 import OrdersOverview from '../components/AdminComp/OrdersOverview'
 import AdminProductCatalog from '../components/AdminComp/AdminProductCatalog'
 import AdminPharmacyDetail from '../components/AdminComp/AdminPharmacyDetail'
+import AllDeliveries from '../components/AdminComp/DeliveryComp/AllDeliveries'
+import DriversPage from '../components/AdminComp/DeliveryComp/DriversPage'
+import DriverRatings from '../components/AdminComp/DeliveryComp/DriverRatings'
 import styles from '../components/Dashescomp/Dashes.module.css'
 
 const tabTitles = {
@@ -17,16 +21,31 @@ const tabTitles = {
   pharmacies: { title: 'Pharmacies',           breadcrumb: 'Admin → Catalog → Pharmacies' },
   products:   { title: 'All Products',         breadcrumb: 'Admin → Catalog → Products' },
   orders:     { title: 'Orders',               breadcrumb: 'Admin → Operations → Orders' },
-  finance:    { title: 'Finance',              breadcrumb: 'Admin → Operations → Finance' },
-  system:     { title: 'System',               breadcrumb: 'Admin → Operations → System' },
+  finance:        { title: 'Finance',          breadcrumb: 'Admin → Operations → Finance' },
+  system:         { title: 'System',           breadcrumb: 'Admin → Operations → System' },
+  deliveries:     { title: 'All Deliveries',   breadcrumb: 'Admin → Logistics → Deliveries' },
+  drivers:        { title: 'Drivers',          breadcrumb: 'Admin → Logistics → Drivers' },
+  driver_ratings: { title: 'Driver Ratings',   breadcrumb: 'Admin → Logistics → Ratings' },
 }
 
 function AdminDash() {
+  const navigate = useNavigate()
   const [activeTab, setActiveTab]         = useState('overview')
   const [selectedPharmacyId, setSelectedPharmacyId] = useState(null)
 
-  const current  = tabTitles[activeTab] || tabTitles.overview
-  const userName = localStorage.getItem('user_name') || 'Admin'
+  const current     = tabTitles[activeTab] || tabTitles.overview
+  const userName    = localStorage.getItem('user_name') || 'Admin'
+  const accountType = localStorage.getItem('account_type')
+
+  useEffect(() => {
+    if (!accountType) navigate('/login')
+    else if (accountType === 'company_admin') navigate('/company')
+    else if (accountType === 'pharmacy_admin') navigate('/pharmacy-dashboard')
+    else if (accountType === 'delivery_admin') navigate('/delivery-dashboard')
+    else if (accountType !== 'super_admin') navigate('/login')
+  }, [accountType, navigate])
+
+  if (accountType !== 'super_admin') return null
 
   const handleTabChange = (tab) => {
     setActiveTab(tab)
@@ -70,8 +89,11 @@ function AdminDash() {
           )}
           {activeTab === 'products'   && <AdminProductCatalog />}
           {activeTab === 'orders'     && <OrdersOverview />}
-          {activeTab === 'finance'    && <PlaceholderPage title="Finance" desc="Financial flows, settlements and arrears reports." icon="💰" />}
-          {activeTab === 'system'     && <PlaceholderPage title="System" desc="System configuration, audit logs and health checks." icon="⚙️" />}
+          {activeTab === 'finance'         && <PlaceholderPage title="Finance" desc="Financial flows, settlements and arrears reports." icon="💰" />}
+          {activeTab === 'system'          && <PlaceholderPage title="System" desc="System configuration, audit logs and health checks." icon="⚙️" />}
+          {activeTab === 'deliveries'      && <AllDeliveries />}
+          {activeTab === 'drivers'         && <DriversPage />}
+          {activeTab === 'driver_ratings'  && <DriverRatings />}
         </div>
       </div>
     </div>
