@@ -1,13 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styles from './AddProduct.module.css';
 
+const API_UNITS = 'http://localhost:3000/api/unit-types';
+
 function AddProduct({ onBack, onSave, loading, initialData = null }) {
+  const companyDisplayName = localStorage.getItem('company_display_name') || ''
+
   const [form, setForm] = useState(initialData || {
-    name: '', category: '', manufacturer: '', description: '',
+    name: '', category: '', manufacturer: companyDisplayName, description: '',
     price: '', stock_quantity: '', expiry_date: '',
-    dosage_form: '', storage_requirements: '', unit_type: 'Box',
+    dosage_form: '', storage_requirements: '', unit_type: '',
     units_per_package: 1, discount_percentage: '', promotion_end_date: ''
   });
+
+  const [unitTypes, setUnitTypes] = useState([]);
+  const [variants, setVariants] = useState(initialData?.variants || [])
 
   // صور موجودة من قاعدة البيانات (أسماء ملفات)
   const [existingImages, setExistingImages] = useState(initialData?.images || []);
@@ -27,12 +34,52 @@ function AddProduct({ onBack, onSave, loading, initialData = null }) {
     setNewFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    fetch(`${API_UNITS}/my`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(setUnitTypes)
+      .catch(() => {});
+  }, []);
+
   const handleChange = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
+  const addVariant = () => {
+    setVariants(prev => [...prev, { unit_type: '', pieces_per_unit: 1, stock_quantity: '' }])
+  }
+
+  const removeVariant = (i) => {
+    setVariants(prev => prev.filter((_, idx) => idx !== i))
+  }
+
+  const updateVariant = (i, field, value) => {
+    setVariants(prev => prev.map((v, idx) => {
+      if (idx !== i) return v
+      const updated = { ...v, [field]: value }
+      if (field === 'unit_type') {
+        const ut = unitTypes.find(u => u.name === value)
+        updated.pieces_per_unit = ut?.pieces_per_unit || 1
+      }
+      return updated
+    }))
+  }
+
   const handleSave = () => {
-    onSave({ ...form, existingImages, newFiles });
+    const primaryVariant = variants[0]
+    const saveForm = {
+      ...form,
+      ...(primaryVariant ? {
+        unit_type: primaryVariant.unit_type,
+        units_per_package: primaryVariant.pieces_per_unit,
+        stock_quantity: primaryVariant.stock_quantity,
+      } : {}),
+      existingImages,
+      newFiles,
+      variants,
+    }
+    onSave(saveForm)
   };
 
   return (
@@ -86,9 +133,9 @@ function AddProduct({ onBack, onSave, loading, initialData = null }) {
                 <label>Manufacturer</label>
                 <input
                   type="text"
-                  placeholder="e.g. PharmaCorp Global"
                   value={form.manufacturer}
-                  onChange={e => handleChange('manufacturer', e.target.value)}
+                  readOnly
+                  style={{ background: '#f1f5f9', color: '#64748b', cursor: 'default' }}
                 />
               </div>
             </div>
@@ -194,35 +241,65 @@ function AddProduct({ onBack, onSave, loading, initialData = null }) {
               />
             </div>
 
+            {/* Variants */}
             <div className={styles.formGroup}>
-              <label>Unit Type</label>
-              <select value={form.unit_type} onChange={e => handleChange('unit_type', e.target.value)}>
-                <option value="Box">Box (كرتون)</option>
-                <option value="Bottle">Bottle (علبة)</option>
-                <option value="Pack">Pack (باكيت)</option>
-                <option value="Unit">Unit (حبة)</option>
-              </select>
-            </div>
-
-            <div className={styles.formGroup}>
-              <label>Units per {form.unit_type || 'Package'} (عدد الحبات في الكرتونة)</label>
-              <input
-                type="number"
-                placeholder="e.g. 24"
-                value={form.units_per_package}
-                onChange={e => handleChange('units_per_package', e.target.value)}
-                min="1"
-              />
-            </div>
-
-            <div className={styles.formGroup}>
-              <label>Stock (number of {form.unit_type || 'units'}s)</label>
-              <input
-                type="number"
-                placeholder="0"
-                value={form.stock_quantity}
-                onChange={e => handleChange('stock_quantity', e.target.value)}
-              />
+              <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Packaging Variants</span>
+                <button
+                  type="button"
+                  onClick={addVariant}
+                  style={{ background: '#013223', color: '#fff', border: 'none', borderRadius: '6px', padding: '3px 10px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  + Add Variant
+                </button>
+              </label>
+              {variants.length === 0 && (
+                <p style={{ color: '#94a3b8', fontSize: '0.8rem', margin: '6px 0' }}>
+                  No variants added. Click "+ Add Variant" to define stock packaging.
+                </p>
+              )}
+              {variants.map((v, i) => (
+                <div key={i} style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '6px' }}>
+                  {unitTypes.length > 0 ? (
+                    <select
+                      value={v.unit_type}
+                      onChange={e => updateVariant(i, 'unit_type', e.target.value)}
+                      style={{ flex: 2, padding: '8px 10px', borderRadius: '8px', border: '1.5px solid #e2e8f0', fontSize: '0.82rem', outline: 'none' }}
+                    >
+                      <option value="">— Unit Type —</option>
+                      {unitTypes.map(u => (
+                        <option key={u.id} value={u.name}>{u.name} ({u.pieces_per_unit} pcs)</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Unit type name"
+                      value={v.unit_type}
+                      onChange={e => updateVariant(i, 'unit_type', e.target.value)}
+                      style={{ flex: 2, padding: '8px 10px', borderRadius: '8px', border: '1.5px solid #e2e8f0', fontSize: '0.82rem', outline: 'none' }}
+                    />
+                  )}
+                  <input
+                    type="number"
+                    placeholder="Stock qty"
+                    value={v.stock_quantity}
+                    onChange={e => updateVariant(i, 'stock_quantity', e.target.value)}
+                    min="0"
+                    style={{ flex: 1, padding: '8px 10px', borderRadius: '8px', border: '1.5px solid #e2e8f0', fontSize: '0.82rem', outline: 'none', textAlign: 'center' }}
+                  />
+                  <span style={{ fontSize: '0.72rem', color: '#64748b', whiteSpace: 'nowrap', minWidth: 40 }}>
+                    ×{v.pieces_per_unit || 1}pcs
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeVariant(i)}
+                    style={{ background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: '6px', padding: '6px 8px', cursor: 'pointer', fontSize: '0.8rem' }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
             </div>
 
             <div className={styles.formGroup}>
