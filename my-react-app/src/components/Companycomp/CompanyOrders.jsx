@@ -10,12 +10,13 @@ const STATUS_META = {
   approved:  { label: 'Approved',  bg: '#eff6ff', color: '#1d4ed8', dot: '#3b82f6' },
   shipped:   { label: 'Shipped',   bg: '#f5f3ff', color: '#7c3aed', dot: '#8b5cf6' },
   delivered: { label: 'Delivered', bg: '#f0fdf4', color: '#15803d', dot: '#22c55e' },
+  completed: { label: 'Completed', bg: '#ecfdf5', color: '#065f46', dot: '#10b981' },
   rejected:  { label: 'Rejected',  bg: '#fef2f2', color: '#b91c1c', dot: '#ef4444' },
   cancelled: { label: 'Cancelled', bg: '#f9fafb', color: '#6b7280', dot: '#9ca3af' },
   all:       { label: 'All',       bg: '#f8fafc', color: '#334155', dot: '#94a3b8' },
 }
 
-const TABS = ['pending', 'approved', 'shipped', 'delivered', 'rejected', 'cancelled', 'all']
+const TABS = ['pending', 'shipped', 'completed', 'rejected']
 
 const statusBadge = (status) => {
   const meta = STATUS_META[status] || STATUS_META.all
@@ -31,6 +32,8 @@ const statusBadge = (status) => {
   )
 }
 
+const API_USERS = 'http://localhost:3000/api/users'
+
 function CompanyOrders() {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
@@ -40,7 +43,11 @@ function CompanyOrders() {
   const [viewOrder, setViewOrder] = useState(null)
   const [viewLoading, setViewLoading] = useState(false)
   const [itemChecks, setItemChecks] = useState([])
+  const [itemNotes, setItemNotes] = useState([])
   const [notes, setNotes] = useState('')
+  const [submitAttempted, setSubmitAttempted] = useState(false)
+  const [drivers, setDrivers] = useState([])
+  const [shipDriverId, setShipDriverId] = useState('')
 
   const token = localStorage.getItem('token')
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
@@ -62,45 +69,62 @@ function CompanyOrders() {
     }
   }
 
-  useEffect(() => { fetchOrders() }, [])
+  useEffect(() => {
+    fetchOrders()
+    fetch('http://localhost:3000/api/deliveries/drivers', { headers })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setDrivers(data || []))
+      .catch(() => {})
+  }, [])
 
   const companyName = localStorage.getItem('user_name') || 'Company Admin'
 
-  const updateStatus = async (id, status) => {
+  const updateStatus = async (id, status, rejectedItemIds = []) => {
     try {
-      console.log('[CompanyOrders] updateStatus →', { id, status, notes: notes.trim() })
+      const body = { status, notes: notes.trim() || null }
+      if (rejectedItemIds.length > 0) body.rejected_item_ids = rejectedItemIds
+      // If shipping directly (legacy/manual), we keep this but we prefer assignDelivery
+      if (status === 'shipped' && shipDriverId) body.delivery_user_id = parseInt(shipDriverId)
+      
       const res = await fetch(`${API}/${id}`, {
-        method: 'PUT', headers, body: JSON.stringify({ status, notes: notes.trim() || null })
+        method: 'PUT', headers, body: JSON.stringify(body)
       })
       const data = await res.json()
-      console.log('[CompanyOrders] response →', res.status, data)
       if (res.ok) {
         showToast(`Order #${id} → ${status}`)
         setViewOrder(null)
         setNotes('')
         setItemChecks([])
+        setItemNotes([])
+        setSubmitAttempted(false)
+        setShipDriverId('')
         fetchOrders()
       } else {
         showToast(data.message || 'Update failed', 'error')
       }
     } catch (err) {
-      console.error('[CompanyOrders] network error:', err)
       showToast('Network error', 'error')
     }
   }
 
-  const handleDeleteOrder = async (id) => {
-    if (!window.confirm(`Are you sure you want to permanently delete order #${id}?`)) return
+  const assignDelivery = async (orderId, driverId) => {
+    if (!driverId) return showToast('Please select a driver', 'error')
     try {
-      const res = await fetch(`${API}/${id}`, { method: 'DELETE', headers })
+      const res = await fetch('http://localhost:3000/api/deliveries', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ order_id: orderId, driver_id: parseInt(driverId), notes: notes.trim() || null })
+      })
+      const data = await res.json()
       if (res.ok) {
-        showToast(`Order #${id} deleted`)
+        showToast(`Delivery assigned to driver`)
+        setViewOrder(null)
+        setShipDriverId('')
         fetchOrders()
       } else {
-        const data = await res.json()
-        showToast(data.message || 'Failed to delete order', 'error')
+        showToast(data.message || 'Assignment failed', 'error')
       }
-    } catch {
+    } catch (err) {
       showToast('Network error', 'error')
     }
   }
@@ -109,19 +133,27 @@ function CompanyOrders() {
     setViewLoading(true)
     setNotes('')
     setItemChecks([])
+    setItemNotes([])
+    setSubmitAttempted(false)
     setViewOrder({ ...row, items: null })
     try {
       const res = await fetch(`${API}/${row.id}`, { headers })
       if (res.ok) {
         const data = await res.json()
         setViewOrder(data)
-        setItemChecks((data.items || []).map(() => false))
+        setItemChecks((data.items || []).map(() => true))
+        setItemNotes((data.items || []).map(() => ''))
       }
     } catch { /* keep basic info visible */ }
     finally { setViewLoading(false) }
   }
 
   const toggleCheck = (i) => setItemChecks(prev => prev.map((v, idx) => idx === i ? !v : v))
+  const toggleAll = () => {
+    const allChecked = itemChecks.every(v => v)
+    setItemChecks(prev => prev.map(() => !allChecked))
+  }
+  const setItemNote = (i, val) => setItemNotes(prev => prev.map((n, idx) => idx === i ? val : n))
 
   const getUnitType = (qty) => {
     if (qty % 48 === 0 && qty >= 48) return `Carton ×${qty / 48} (48 units)`
@@ -129,7 +161,9 @@ function CompanyOrders() {
     return 'Units'
   }
 
-  const byStatus = filter === 'all' ? orders : orders.filter(o => o.status === filter)
+  const byStatus = filter === 'pending'
+    ? orders.filter(o => o.status === 'pending' || o.status === 'approved')
+    : orders.filter(o => o.status === filter)
   const q = search.toLowerCase().trim()
   const filtered = q
     ? byStatus.filter(o =>
@@ -171,15 +205,35 @@ function CompanyOrders() {
         <div className={compStyles.orderActions}>
           <button
             className={`${compStyles.orderBtn} ${compStyles.orderBtnReject}`}
-            onClick={() => updateStatus(row.id, 'cancelled')}
+            onClick={() => updateStatus(row.id, 'rejected')}
           >
-            ✕ Cancel
+            ✕ Reject
           </button>
           <button
             className={`${compStyles.orderBtn} ${compStyles.orderBtnShip}`}
-            onClick={() => updateStatus(row.id, 'shipped')}
+            onClick={() => openOrderDetails(row)}
           >
-            🚚 Ship
+            🚚 Assign & Ship
+          </button>
+        </div>
+      )
+    }
+    if (row.status === 'shipped') {
+      return (
+        <div className={compStyles.orderActions}>
+          <button
+            className={`${compStyles.orderBtn}`}
+            onClick={() => updateStatus(row.id, 'delivered')}
+            style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #22c55e' }}
+          >
+            ✓ Mark Delivered
+          </button>
+          <button
+            className={`${compStyles.orderBtn}`}
+            onClick={() => openOrderDetails(row)}
+            style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}
+          >
+            🔍 View
           </button>
         </div>
       )
@@ -192,13 +246,6 @@ function CompanyOrders() {
           style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}
         >
           🔍 View
-        </button>
-        <button
-          className={`${compStyles.orderBtn}`}
-          onClick={() => handleDeleteOrder(row.id)}
-          style={{ background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca' }}
-        >
-          🗑️ Delete
         </button>
       </div>
     )
@@ -235,7 +282,9 @@ function CompanyOrders() {
         {TABS.map(s => {
           const meta = STATUS_META[s]
           const isActive = filter === s
-          const count = s === 'all' ? orders.length : orders.filter(o => o.status === s).length
+          const count = s === 'pending'
+            ? orders.filter(o => o.status === 'pending' || o.status === 'approved').length
+            : orders.filter(o => o.status === s).length
           return (
             <button
               key={s}
@@ -376,69 +425,100 @@ function CompanyOrders() {
                       <th style={{ padding: '9px 10px', textAlign: 'center', color: '#64748b', fontWeight: 700 }}>Type</th>
                       <th style={{ padding: '9px 10px', textAlign: 'right',  color: '#64748b', fontWeight: 700 }}>Price</th>
                       <th style={{ padding: '9px 10px', textAlign: 'right',  color: '#64748b', fontWeight: 700 }}>Subtotal</th>
-                      <th style={{ padding: '9px 10px', textAlign: 'center', color: '#64748b', fontWeight: 700 }}>✓</th>
+                      {viewOrder.status === 'pending' && (
+                        <th style={{ padding: '9px 10px', textAlign: 'center', color: '#64748b', fontWeight: 700, width: '44px' }}>
+                          <input
+                            type="checkbox"
+                            checked={itemChecks.length > 0 && itemChecks.every(v => v)}
+                            onChange={toggleAll}
+                            title="Select / Deselect all"
+                            style={{ width: '17px', height: '17px', accentColor: '#013223', cursor: 'pointer' }}
+                          />
+                        </th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
                     {viewOrder.items.map((item, i) => {
-                      const checked = itemChecks[i] || false
+                      const checked = itemChecks[i] !== false
+                      const note = itemNotes[i] || ''
+                      const noteMissing = submitAttempted && !checked && !note.trim()
                       return (
-                        <tr key={i} style={{
-                          borderBottom: '1px solid #f1f5f9',
-                          background: checked ? '#f0fdf4' : 'transparent',
-                          transition: 'background 0.15s'
-                        }}>
-                          <td style={{ padding: '10px', textAlign: 'center', color: '#94a3b8', fontWeight: 700 }}>{i + 1}</td>
-                          <td style={{ padding: '10px', fontWeight: 600, color: '#1e293b' }}>
-                            {item.product_name || `Product #${item.product_id}`}
-                          </td>
-                          <td style={{ padding: '10px', textAlign: 'center', color: '#374151', fontWeight: 700 }}>
-                            {item.quantity}
-                          </td>
-                          <td style={{ padding: '10px', textAlign: 'center' }}>
-                            <span style={{
-                              fontSize: '0.72rem', fontWeight: 700,
-                              padding: '3px 8px', borderRadius: '12px',
-                              background: item.quantity % 48 === 0 && item.quantity >= 48
-                                ? '#fef3c7' : item.quantity % 24 === 0 && item.quantity >= 24
-                                ? '#fef9c3' : '#f1f5f9',
-                              color: item.quantity % 48 === 0 && item.quantity >= 48
-                                ? '#92400e' : item.quantity % 24 === 0 && item.quantity >= 24
-                                ? '#78350f' : '#475569'
-                            }}>
-                              {getUnitType(item.quantity)}
-                            </span>
-                          </td>
-                          <td style={{ padding: '10px', textAlign: 'right', color: '#374151' }}>
-                            ${Number(item.price).toFixed(2)}
-                          </td>
-                          <td style={{ padding: '10px', textAlign: 'right', fontWeight: 700, color: '#013223' }}>
-                            ${(Number(item.price) * item.quantity).toFixed(2)}
-                          </td>
-                          <td style={{ padding: '10px', textAlign: 'center' }}>
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => toggleCheck(i)}
-                              style={{ width: '17px', height: '17px', accentColor: '#013223', cursor: 'pointer' }}
-                            />
-                          </td>
-                        </tr>
+                        <React.Fragment key={i}>
+                          <tr style={{
+                            borderBottom: checked ? '1px solid #f1f5f9' : 'none',
+                            background: checked ? '#f0fdf4' : '#fff5f5',
+                            transition: 'background 0.15s'
+                          }}>
+                            <td style={{ padding: '10px', textAlign: 'center', color: '#94a3b8', fontWeight: 700 }}>{i + 1}</td>
+                            <td style={{ padding: '10px', fontWeight: 600, color: checked ? '#1e293b' : '#b91c1c' }}>
+                              {item.product_name || `Product #${item.product_id}`}
+                              {!checked && <span style={{ marginLeft: 6, fontSize: '0.72rem', fontWeight: 700, background: '#fee2e2', color: '#b91c1c', padding: '2px 7px', borderRadius: '10px' }}>Rejected</span>}
+                            </td>
+                            <td style={{ padding: '10px', textAlign: 'center', color: '#374151', fontWeight: 700 }}>{item.quantity}</td>
+                            <td style={{ padding: '10px', textAlign: 'center' }}>
+                              <span style={{
+                                fontSize: '0.72rem', fontWeight: 700,
+                                padding: '3px 8px', borderRadius: '12px',
+                                background: item.quantity % 48 === 0 && item.quantity >= 48
+                                  ? '#fef3c7' : item.quantity % 24 === 0 && item.quantity >= 24
+                                  ? '#fef9c3' : '#f1f5f9',
+                                color: item.quantity % 48 === 0 && item.quantity >= 48
+                                  ? '#92400e' : item.quantity % 24 === 0 && item.quantity >= 24
+                                  ? '#78350f' : '#475569'
+                              }}>
+                                {getUnitType(item.quantity)}
+                              </span>
+                            </td>
+                            <td style={{ padding: '10px', textAlign: 'right', color: '#374151' }}>${Number(item.price).toFixed(2)}</td>
+                            <td style={{ padding: '10px', textAlign: 'right', fontWeight: 700, color: checked ? '#013223' : '#9ca3af', textDecoration: checked ? 'none' : 'line-through' }}>
+                              ${(Number(item.price) * item.quantity).toFixed(2)}
+                            </td>
+                            {viewOrder.status === 'pending' && (
+                              <td style={{ padding: '10px', textAlign: 'center' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleCheck(i)}
+                                  style={{ width: '17px', height: '17px', accentColor: '#013223', cursor: 'pointer' }}
+                                />
+                              </td>
+                            )}
+                          </tr>
+                          {/* Per-item notes row — shown when item is unchecked (rejected) */}
+                          {!checked && viewOrder.status === 'pending' && (
+                            <tr style={{ background: '#fff5f5', borderBottom: '1px solid #fecaca' }}>
+                              <td />
+                              <td colSpan={viewOrder.status === 'pending' ? 6 : 5} style={{ padding: '4px 10px 10px' }}>
+                                <input
+                                  type="text"
+                                  value={note}
+                                  onChange={e => setItemNote(i, e.target.value)}
+                                  placeholder={`Reason for rejecting "${item.product_name || `Product #${item.product_id}`}" (required)`}
+                                  style={{
+                                    width: '100%', padding: '6px 10px', borderRadius: '6px', boxSizing: 'border-box',
+                                    border: `1.5px solid ${noteMissing ? '#ef4444' : '#fca5a5'}`,
+                                    fontSize: '0.8rem', outline: 'none', background: '#fff',
+                                    color: '#374151', fontFamily: 'inherit'
+                                  }}
+                                />
+                                {noteMissing && <p style={{ margin: '3px 0 0', fontSize: '0.75rem', color: '#ef4444' }}>Note is required for rejected items</p>}
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       )
                     })}
                   </tbody>
                   <tfoot>
                     <tr style={{ borderTop: '2px solid #e2e8f0', background: '#f8fafc' }}>
-                      <td colSpan={5} style={{ padding: '10px', textAlign: 'right', fontWeight: 700, color: '#374151', fontSize: '0.9rem' }}>
-                        Total ({viewOrder.items.length} {viewOrder.items.length === 1 ? 'item' : 'items'})
+                      <td colSpan={viewOrder.status === 'pending' ? 5 : 5} style={{ padding: '10px', textAlign: 'right', fontWeight: 700, color: '#374151', fontSize: '0.9rem' }}>
+                        Total ({itemChecks.filter(Boolean).length}/{viewOrder.items.length} items)
                       </td>
                       <td style={{ padding: '10px', textAlign: 'right', fontWeight: 900, fontSize: '1.05rem', color: '#013223' }}>
-                        ${Number(
-                          viewOrder.total_amount ||
-                          viewOrder.items.reduce((s, it) => s + Number(it.price) * it.quantity, 0)
-                        ).toFixed(2)}
+                        ${viewOrder.items.reduce((s, it, i) => itemChecks[i] !== false ? s + Number(it.price) * it.quantity : s, 0).toFixed(2)}
                       </td>
-                      <td />
+                      {viewOrder.status === 'pending' && <td />}
                     </tr>
                   </tfoot>
                 </table>
@@ -451,61 +531,119 @@ function CompanyOrders() {
                 <div style={{ marginBottom: '20px' }}>
                   <label style={{
                     display: 'block', fontSize: '0.8rem', fontWeight: 700,
-                    color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '6px'
+                    color: submitAttempted && !notes.trim() ? '#b91c1c' : '#64748b',
+                    textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '6px'
                   }}>
-                    📝 Notes (optional)
+                    📝 Notes {submitAttempted && !notes.trim() ? '— required for rejection' : '(required to reject)'}
                   </label>
                   <textarea
                     value={notes}
                     onChange={e => setNotes(e.target.value)}
-                    placeholder="Add notes about this order… (will be sent with your decision)"
+                    placeholder="Add notes about this order… (required when rejecting)"
                     rows={3}
                     style={{
                       width: '100%', padding: '10px 12px', borderRadius: '10px',
-                      border: '1.5px solid #e2e8f0', fontSize: '0.88rem',
-                      resize: 'vertical', outline: 'none', boxSizing: 'border-box',
+                      border: `1.5px solid ${submitAttempted && !notes.trim() ? '#ef4444' : '#e2e8f0'}`,
+                      fontSize: '0.88rem', resize: 'vertical', outline: 'none', boxSizing: 'border-box',
                       fontFamily: 'inherit', color: '#374151', background: '#f8fafc',
-                      transition: 'border-color 0.15s'
                     }}
                     onFocus={e => e.target.style.borderColor = '#013223'}
-                    onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                    onBlur={e => e.target.style.borderColor = submitAttempted && !notes.trim() ? '#ef4444' : '#e2e8f0'}
                   />
                 </div>
               )}
 
               {/* Action buttons */}
-              {viewOrder.status === 'pending' && (
-                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                  <button
-                    className={`${compStyles.orderBtn} ${compStyles.orderBtnReject}`}
-                    onClick={() => {
-                      if (!notes.trim() && !window.confirm('Reject this order without notes?')) return
-                      updateStatus(viewOrder.id, 'rejected')
-                    }}
-                  >
-                    ✕ Reject Order
-                  </button>
-                  <button
-                    className={`${compStyles.orderBtn} ${compStyles.orderBtnApprove}`}
-                    onClick={() => updateStatus(viewOrder.id, 'approved')}
-                  >
-                    ✅ Approve Order
-                  </button>
-                </div>
-              )}
+              {viewOrder.status === 'pending' && (() => {
+                const items = viewOrder.items || []
+                const rejectedItemIds = items.filter((_, i) => !itemChecks[i]).map(it => it.id).filter(Boolean)
+                const uncheckedIndices = items.map((_, i) => i).filter(i => !itemChecks[i])
+                const missingItemNotes = uncheckedIndices.filter(i => !itemNotes[i]?.trim())
+                const approvedCount = itemChecks.filter(Boolean).length
+
+                return (
+                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                    <button
+                      className={`${compStyles.orderBtn} ${compStyles.orderBtnReject}`}
+                      onClick={() => {
+                        setSubmitAttempted(true)
+                        if (!notes.trim()) return
+                        updateStatus(viewOrder.id, 'rejected')
+                      }}
+                    >
+                      ✕ Reject Order
+                    </button>
+                    <button
+                      className={`${compStyles.orderBtn} ${compStyles.orderBtnApprove}`}
+                      onClick={() => {
+                        setSubmitAttempted(true)
+                        if (missingItemNotes.length > 0) {
+                          showToast('Please add notes for all unchecked (rejected) items', 'error')
+                          return
+                        }
+                        if (approvedCount === 0) {
+                          showToast('No items selected — use Reject Order instead', 'error')
+                          return
+                        }
+                        updateStatus(viewOrder.id, 'approved', rejectedItemIds)
+                      }}
+                    >
+                      ✅ Approve {approvedCount < items.length ? `(${approvedCount}/${items.length})` : 'Order'}
+                    </button>
+                  </div>
+                )
+              })()}
               {viewOrder.status === 'approved' && (
+                <>
+                  {/* Driver assignment */}
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '6px' }}>
+                      🚚 Assign Delivery Driver
+                    </label>
+                    <select
+                      value={shipDriverId}
+                      onChange={e => setShipDriverId(e.target.value)}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '0.88rem', outline: 'none', background: '#f8fafc', color: '#374151', fontFamily: 'inherit' }}
+                    >
+                      <option value="">— Select a driver (optional) —</option>
+                      {drivers.map(d => (
+                        <option key={d.id} value={d.id}>{d.name} {d.phone ? `· ${d.phone}` : ''}</option>
+                      ))}
+                    </select>
+                    {shipDriverId && (
+                      <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: '#059669' }}>
+                        ✓ Order will be assigned to {drivers.find(d => String(d.id) === String(shipDriverId))?.name}
+                      </p>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                    <button
+                      className={`${compStyles.orderBtn} ${compStyles.orderBtnReject}`}
+                      onClick={() => {
+                        setSubmitAttempted(true)
+                        if (!notes.trim()) return
+                        updateStatus(viewOrder.id, 'rejected')
+                      }}
+                    >
+                      ✕ Reject Order
+                    </button>
+                    <button
+                      className={`${compStyles.orderBtn} ${compStyles.orderBtnShip}`}
+                      onClick={() => assignDelivery(viewOrder.id, shipDriverId)}
+                    >
+                      🚚 Assign Driver & Send
+                    </button>
+                  </div>
+                </>
+              )}
+              {viewOrder.status === 'shipped' && (
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                   <button
-                    className={`${compStyles.orderBtn} ${compStyles.orderBtnReject}`}
-                    onClick={() => updateStatus(viewOrder.id, 'cancelled')}
+                    className={`${compStyles.orderBtn}`}
+                    style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #22c55e' }}
+                    onClick={() => updateStatus(viewOrder.id, 'delivered')}
                   >
-                    ✕ Cancel Order
-                  </button>
-                  <button
-                    className={`${compStyles.orderBtn} ${compStyles.orderBtnShip}`}
-                    onClick={() => updateStatus(viewOrder.id, 'shipped')}
-                  >
-                    🚚 Ship Order
+                    ✓ Mark Delivered
                   </button>
                 </div>
               )}
