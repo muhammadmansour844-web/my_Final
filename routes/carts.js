@@ -2,6 +2,9 @@ const express = require('express');
 const pool = require('../db');
 const jwt = require('jsonwebtoken');
 
+pool.query(`ALTER TABLE cart_items ADD COLUMN variant_id INT NULL`).catch(() => {});
+pool.query(`ALTER TABLE cart_items ADD COLUMN variant_pieces INT NULL DEFAULT 1`).catch(() => {});
+
 const router = express.Router();
 
 // ===== Middleware =====
@@ -95,7 +98,7 @@ router.get('/', verifyToken, isPharmacy, async (req, res) => {
 router.post('/:cartId/items', verifyToken, isPharmacy, async (req, res) => {
   try {
     const { cartId } = req.params;
-    const { product_id, quantity } = req.body;
+    const { product_id, quantity, variant_id, variant_pieces } = req.body;
 
     if (!product_id || !quantity || quantity <= 0) {
       return res.status(400).json({ message: 'product_id and quantity are required' });
@@ -122,16 +125,27 @@ router.post('/:cartId/items', verifyToken, isPharmacy, async (req, res) => {
     if (product.length === 0) {
       return res.status(404).json({ message: 'Product not found' });
     }
-    if (product[0].stock_quantity < quantity) {
-      return res.status(400).json({ 
-        message: `Insufficient stock, available: ${product[0].stock_quantity}` 
-      });
+
+    if (variant_id) {
+      const [variant] = await pool.query(
+        `SELECT id, stock_quantity, pieces_per_unit FROM product_unit_variants WHERE id = ? AND product_id = ?`,
+        [variant_id, product_id]
+      );
+      if (variant.length === 0) return res.status(404).json({ message: 'Variant not found' });
+      const variantQty = Math.ceil(quantity / (variant[0].pieces_per_unit || 1));
+      if (variant[0].stock_quantity < variantQty) {
+        return res.status(400).json({ message: `Insufficient stock, available: ${variant[0].stock_quantity}` });
+      }
+    } else {
+      if (product[0].stock_quantity < quantity) {
+        return res.status(400).json({ message: `Insufficient stock, available: ${product[0].stock_quantity}` });
+      }
     }
 
     // لو المنتج موجود بالسلة — جمّع الكمية
     const [existingItem] = await pool.query(
-      `SELECT id, quantity FROM cart_items WHERE cart_id = ? AND product_id = ?`,
-      [cartId, product_id]
+      `SELECT id, quantity FROM cart_items WHERE cart_id = ? AND product_id = ? AND (variant_id <=> ?)`,
+      [cartId, product_id, variant_id || null]
     );
 
     if (existingItem.length > 0) {
@@ -154,8 +168,8 @@ router.post('/:cartId/items', verifyToken, isPharmacy, async (req, res) => {
 
     // لو مش موجود — أضفه
     await pool.query(
-      `INSERT INTO cart_items (cart_id, product_id, quantity, price) VALUES (?, ?, ?, ?)`,
-      [cartId, product_id, quantity, product[0].price]
+      `INSERT INTO cart_items (cart_id, product_id, quantity, price, variant_id, variant_pieces) VALUES (?, ?, ?, ?, ?, ?)`,
+      [cartId, product_id, quantity, product[0].price, variant_id || null, variant_pieces || null]
     );
 
     res.status(201).json({ message: 'Item added to cart' });
@@ -177,10 +191,14 @@ router.get('/:cartId/items', verifyToken, isPharmacy, async (req, res) => {
 
     const [rows] = await pool.query(
       `SELECT ci.id, ci.product_id, ci.quantity, ci.price,
+              ci.variant_id, ci.variant_pieces,
               p.name, p.stock_quantity,
-              (ci.quantity * ci.price) as subtotal
+              puv.unit_type AS variant_unit_type,
+              (ci.quantity * ci.price) as subtotal,
+              (SELECT picture FROM product_images WHERE product_id = p.id LIMIT 1) AS image
        FROM cart_items ci
        JOIN products p ON ci.product_id = p.id
+       LEFT JOIN product_unit_variants puv ON puv.id = ci.variant_id
        WHERE ci.cart_id = ?`,
       [cartId]
     );
@@ -293,6 +311,7 @@ router.post('/:cartId/checkout', verifyToken, isPharmacy, async (req, res) => {
     // جيب محتويات السلة مع company_id لكل منتج
     const [items] = await pool.query(
       `SELECT ci.product_id, ci.quantity, ci.price,
+              ci.variant_id, ci.variant_pieces,
               p.stock_quantity, p.company_id
        FROM cart_items ci
        JOIN products p ON ci.product_id = p.id
@@ -308,6 +327,10 @@ router.post('/:cartId/checkout', verifyToken, isPharmacy, async (req, res) => {
     const [relation] = await pool.query(
       `SELECT pharmacy_id FROM pharmacy_users WHERE user_id = ?`, [req.user.id]
     );
+    
+    if (relation.length === 0) {
+      return res.status(403).json({ message: 'Access denied: User not linked to a pharmacy' });
+    }
     const pharmacyId = relation[0].pharmacy_id;
 
     // جمّع المنتجات حسب الشركة — طلبية منفصلة لكل شركة
@@ -331,13 +354,21 @@ router.post('/:cartId/checkout', verifyToken, isPharmacy, async (req, res) => {
 
         for (const item of companyItems) {
           await conn.query(
-            `INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)`,
-            [orderId, item.product_id, item.quantity, item.price]
+            `INSERT INTO order_items (order_id, product_id, quantity, price, variant_id, variant_pieces) VALUES (?, ?, ?, ?, ?, ?)`,
+            [orderId, item.product_id, item.quantity, item.price, item.variant_id || null, item.variant_pieces || null]
           );
-          await conn.query(
-            `UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?`,
-            [item.quantity, item.product_id]
-          );
+          if (item.variant_id) {
+            const variantQty = Math.ceil(item.quantity / (item.variant_pieces || 1));
+            await conn.query(
+              `UPDATE product_unit_variants SET stock_quantity = stock_quantity - ? WHERE id = ?`,
+              [variantQty, item.variant_id]
+            );
+          } else {
+            await conn.query(
+              `UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?`,
+              [item.quantity, item.product_id]
+            );
+          }
         }
       }
 
