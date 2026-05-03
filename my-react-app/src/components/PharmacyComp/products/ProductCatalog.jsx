@@ -1,32 +1,25 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FiSearch } from 'react-icons/fi'
 import styles from '../styles/Pharmacy.module.css'
 import dStyles from '../../Dashescomp/Dashes.module.css'
 
 const API_PRODUCTS = 'http://localhost:3000/api/products'
 
-const categoryIcons = {
-  'Pain Relief': '💊',
-  'Antibiotics': '🧬',
-  'Vitamins': '🍊',
-  'Skincare': '🧴',
-  'Heart': '❤️',
-  'Diabetes': '🩸',
-  'default': '💊'
-}
-
 function ProductCatalog({ onAddToCart }) {
   const navigate = useNavigate()
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState('') // used by toolbar search input
   const [categoryFilters, setCategoryFilters] = useState([])
   const [companyFilters, setCompanyFilters] = useState([])
-  const [maxPrice, setMaxPrice] = useState(5000)
-  const [stockFilter, setStockFilter] = useState('all')
+  const [minPriceInput, setMinPriceInput] = useState('')
+  const [maxPriceInput, setMaxPriceInput] = useState('')
+  const [appliedMin, setAppliedMin] = useState(0)
+  const [appliedMax, setAppliedMax] = useState(Infinity)
+  const [sortBy, setSortBy] = useState('relevance')
   const [addingId, setAddingId] = useState(null)
-  const [dealsTimer, setDealsTimer] = useState('')
+  const [offersTimer, setoffersTimer] = useState('')
+  const [quantityMap, setQuantityMap] = useState({})
 
   const token = localStorage.getItem('token')
   const headers = {
@@ -60,11 +53,11 @@ function ProductCatalog({ onAddToCart }) {
     const endTime = getMidnightEnd()
     const tick = () => {
       const diff = endTime - Date.now()
-      if (diff <= 0) { setDealsTimer('00:00:00'); return }
+      if (diff <= 0) { setoffersTimer('00:00:00'); return }
       const h = Math.floor(diff / 3600000)
       const m = Math.floor((diff % 3600000) / 60000)
       const s = Math.floor((diff % 60000) / 1000)
-      setDealsTimer(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`)
+      setoffersTimer(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`)
     }
     tick()
     const id = setInterval(tick, 1000)
@@ -79,11 +72,16 @@ function ProductCatalog({ onAddToCart }) {
                         p.manufacturer?.toLowerCase().includes(search.toLowerCase())
     const matchCategory = categoryFilters.length === 0 || categoryFilters.includes(p.category)
     const matchCompany = companyFilters.length === 0 || companyFilters.includes(p.manufacturer)
-    const matchPrice = parseFloat(p.price) <= maxPrice
-    let matchStock = true
-    if (stockFilter === 'in_stock') matchStock = p.stock_quantity > 0
-    else if (stockFilter === 'out_of_stock') matchStock = p.stock_quantity <= 0
-    return matchSearch && matchCategory && matchCompany && matchPrice && matchStock
+    const price = parseFloat(p.price) || 0
+    const matchPrice = price >= appliedMin && price <= appliedMax
+    return matchSearch && matchCategory && matchCompany && matchPrice
+  }).sort((a, b) => {
+    const aOut = a.stock_quantity <= 0 ? 1 : 0
+    const bOut = b.stock_quantity <= 0 ? 1 : 0
+    if (aOut !== bOut) return aOut - bOut
+    if (sortBy === 'price_asc') return parseFloat(a.price) - parseFloat(b.price)
+    if (sortBy === 'price_desc') return parseFloat(b.price) - parseFloat(a.price)
+    return 0
   })
 
   const toggleCategory = (cat) => {
@@ -94,41 +92,22 @@ function ProductCatalog({ onAddToCart }) {
     setCompanyFilters(prev => prev.includes(comp) ? prev.filter(c => c !== comp) : [...prev, comp])
   }
 
-  const clearAllFilters = () => {
-    setCategoryFilters([])
-    setCompanyFilters([])
-    setMaxPrice(5000)
-    setStockFilter('all')
+  const getQty = (id) => quantityMap[id] || 1
+  const setQty = (id, val) => {
+    const n = Math.max(1, parseInt(val) || 1)
+    setQuantityMap(prev => ({ ...prev, [id]: n }))
   }
 
   const handleAdd = async (product) => {
     setAddingId(product.id)
-    if (onAddToCart) await onAddToCart(product)
+    if (onAddToCart) await onAddToCart(product, getQty(product.id))
+    setQuantityMap(prev => ({ ...prev, [product.id]: 1 }))
     setTimeout(() => setAddingId(null), 800)
   }
 
   const getDiscountedPrice = (price, discount) => {
     if (!discount) return null
     return (parseFloat(price) * (1 - discount / 100)).toFixed(2)
-  }
-
-  const getTimeLeft = (product) => {
-    let endDate
-    if (product.promotion_end_date) {
-      endDate = new Date(product.promotion_end_date).getTime()
-    } else {
-      const now = new Date()
-      const anchor = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
-      const days = (product.id % 20) + 15
-      const hours = (product.id * 13) % 24
-      endDate = anchor + (days * 24 * 60 * 60 * 1000) + (hours * 60 * 60 * 1000)
-      if (endDate < Date.now()) endDate += 30 * 24 * 60 * 60 * 1000
-    }
-    const diff = endDate - Date.now()
-    if (diff <= 0) return 'Expired'
-    const d = Math.floor(diff / (1000 * 60 * 60 * 24))
-    const h = Math.floor((diff / (1000 * 60 * 60)) % 24)
-    return `${d}d ${h}h left`
   }
 
   const getFirstImage = (product) => {
@@ -147,68 +126,24 @@ function ProductCatalog({ onAddToCart }) {
     )
   }
 
-  const topDeals = [...products]
+  const topOffers = [...products]
     .filter(p => p.discount_percentage > 0)
     .sort((a, b) => b.discount_percentage - a.discount_percentage)
     .slice(0, 5)
 
-  const quickCategories = [
-    'Antibiotics', 'Vitamins & Supplements', 'Diabetes Care', 'Cardiology',
-    'Oncology', 'Pediatrics', 'Generics', 'Emergency Kit'
-  ]
-
-  const supplyClusters = [
-    { name: 'IMMUNOLOGY', icon: '🧬' },
-    { name: 'TABLETS', icon: '💊' },
-    { name: 'SURGICAL', icon: '🩺' },
-    { name: 'DIAGNOSTICS', icon: '🧪' },
-    { name: 'LAB REAGENTS', icon: '🔬' },
-    { name: 'CRITICAL CARE', icon: '⚕️' },
-  ]
-
   return (
     <div className={styles.aliLayout}>
 
-      {/* SECTION 1: Mega Search & Pills */}
-      <div className={styles.aliTopBar}>
-        <div className={styles.aliMegaSearch}>
-          <select className={styles.aliSearchSelect}>
-            <option>All Categories</option>
-          </select>
-          <input
-            type="text"
-            placeholder="Search molecules, brands, or manufacturers..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className={styles.aliSearchInput}
-          />
-          <button className={styles.aliSearchBtn}>🔍</button>
-        </div>
-        <div className={styles.aliPillStrip}>
-          {quickCategories.map((cat, idx) => (
-            <button
-              key={cat}
-              className={`${styles.aliPill} ${categoryFilters.includes(cat) || (idx === 0 && categoryFilters.length === 0) ? styles.aliPillActive : ''}`}
-              onClick={() => {
-                if (!categoryFilters.includes(cat)) toggleCategory(cat)
-              }}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* SECTION 2: Hero Banner */}
+      {/* SECTION 1: Hero Banner */}
       <div className={styles.aliHeroBanner}>
         <div className={styles.aliHeroContent}>
           <span className={styles.aliHeroTag}>LIMITED AVAILABILITY</span>
-          <h1 className={styles.aliHeroTitle}>Flash Deals — Up to 40% Off</h1>
+          <h1 className={styles.aliHeroTitle}>Flash Offers — Up to 40% Off</h1>
           <p className={styles.aliHeroSub}>Restock your inventory with clinic-grade precision at wholesale rates.</p>
           <div className={styles.aliHeroActions}>
             <button className={styles.aliHeroBtn}>ORDER NOW</button>
             <div className={styles.aliHeroTimer}>
-              ⏱ {dealsTimer.split(':').join(' : ')}
+              ⏱ {offersTimer.split(':').join(' : ')}
             </div>
           </div>
         </div>
@@ -250,35 +185,36 @@ function ProductCatalog({ onAddToCart }) {
       </div>
 
       {/* SECTION 4: Flash Deals Row */}
-      {topDeals.length > 0 && (
+      {topOffers.length > 0 && (
         <div className={styles.aliFlashSection}>
           <div className={styles.aliFlashHeader}>
             <div className={styles.aliFlashHeaderLeft}>
               <span className={styles.aliFlashIcon}>⚡</span>
-              <h3 className={styles.aliFlashTitle}>CLINICAL FLASH DEALS</h3>
-              <div className={styles.aliFlashTimerDark}>ENDS IN: {dealsTimer}</div>
+              <h3 className={styles.aliFlashTitle}>CLINICAL FLASH OFFERS</h3>
+              <div className={styles.aliFlashTimerDark}>ENDS IN: {offersTimer}</div>
             </div>
           </div>
           <div className={styles.aliFlashRow}>
-            {topDeals.map(deal => {
-              const discountedPrice = getDiscountedPrice(deal.price, deal.discount_percentage)
-              const claimedPct = Math.floor(Math.random() * 60) + 20
-              const leftCount = deal.stock_quantity
+            {topOffers.map(offer => {
+              const discountedPrice = getDiscountedPrice(offer.price, offer.discount_percentage)
+              const maxStock = 200
+              const claimedPct = Math.min(95, Math.round(100 - (offer.stock_quantity / maxStock) * 100))
+              const leftCount = offer.stock_quantity
               return (
-                <div key={`flash-${deal.id}`} className={styles.aliFlashCard} onClick={() => navigate('/product-details', { state: { product: deal } })}>
+                <div key={`flash-${offer.id}`} className={styles.aliFlashCard} onClick={() => navigate('/product-details', { state: { product: offer } })}>
                   <div className={styles.aliFlashImgArea}>
-                    <span className={styles.aliFlashBadge}>-{parseFloat(deal.discount_percentage).toFixed(0)}%</span>
-                    {getFirstImage(deal) ? (
-                      <img src={getFirstImage(deal)} alt={deal.name} />
+                    <span className={styles.aliFlashBadge}>-{parseFloat(offer.discount_percentage).toFixed(0)}%</span>
+                    {getFirstImage(offer) ? (
+                      <img src={getFirstImage(offer)} alt={offer.name} />
                     ) : (
                       <span style={{ fontSize: '3rem' }}>💊</span>
                     )}
                   </div>
                   <div className={styles.aliFlashBody}>
-                    <div className={styles.aliFlashName}>{deal.name}</div>
+                    <div className={styles.aliFlashName}>{offer.name}</div>
                     <div className={styles.aliFlashPriceRow}>
                       <span className={styles.aliPriceMain}>₪{discountedPrice}</span>
-                      <span className={styles.aliPriceOld}>₪{parseFloat(deal.price).toFixed(0)}</span>
+                      <span className={styles.aliPriceOld}>₪{parseFloat(offer.price).toFixed(0)}</span>
                     </div>
                     <div className={styles.aliFlashProgressRow}>
                       <div className={styles.aliProgressText}>
@@ -327,26 +263,72 @@ function ProductCatalog({ onAddToCart }) {
           <div className={styles.aliFilterBlock}>
             <h4 className={styles.aliFilterTitle}>PRICE RANGE (₪)</h4>
             <div className={styles.aliPriceInputs}>
-              <input type="number" placeholder="Min" className={styles.aliPriceInput} />
+              <input
+                type="number"
+                placeholder="Min"
+                min="0"
+                value={minPriceInput}
+                onChange={e => setMinPriceInput(e.target.value)}
+                className={styles.aliPriceInput}
+              />
               <span>-</span>
-              <input type="number" placeholder="Max" className={styles.aliPriceInput} />
+              <input
+                type="number"
+                placeholder="Max"
+                min="0"
+                value={maxPriceInput}
+                onChange={e => setMaxPriceInput(e.target.value)}
+                className={styles.aliPriceInput}
+              />
             </div>
-            <button className={styles.aliApplyBtn}>APPLY FILTERS</button>
+            {(appliedMin > 0 || appliedMax < Infinity) && (
+              <p style={{ margin: '4px 0 6px', fontSize: '0.75rem', color: '#059669', fontWeight: 600 }}>
+                Filtering: ₪{appliedMin} – {appliedMax === Infinity ? '∞' : `₪${appliedMax}`}
+              </p>
+            )}
+            <button
+              className={styles.aliApplyBtn}
+              onClick={() => {
+                setAppliedMin(minPriceInput !== '' ? Math.max(0, parseFloat(minPriceInput)) : 0)
+                setAppliedMax(maxPriceInput !== '' ? Math.max(0, parseFloat(maxPriceInput)) : Infinity)
+              }}
+            >
+              APPLY FILTERS
+            </button>
+            {(appliedMin > 0 || appliedMax < Infinity) && (
+              <button
+                onClick={() => { setAppliedMin(0); setAppliedMax(Infinity); setMinPriceInput(''); setMaxPriceInput('') }}
+                style={{ width: '100%', marginTop: '6px', padding: '6px', background: 'none', border: '1px solid #e2e8f0', borderRadius: '6px', color: '#64748b', fontSize: '0.78rem', cursor: 'pointer' }}
+              >
+                Clear Price Filter
+              </button>
+            )}
           </div>
         </aside>
 
         {/* Right Content */}
         <div className={styles.aliGridContent}>
           <div className={styles.aliToolbar}>
+            <input
+              type="text"
+              placeholder="Search products or manufacturers..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem', flex: 1, maxWidth: 280, outline: 'none' }}
+            />
             <div className={styles.aliResultCount}>
-              Showing <strong>{filtered.length}</strong> clinical products found
+              Showing <strong>{filtered.length}</strong> products
             </div>
             <div className={styles.aliSortWrap}>
               <span className={styles.aliSortLabel}>SORT BY:</span>
-              <select className={styles.aliSortSelect}>
-                <option>Relevance</option>
-                <option>Price Low to High</option>
-                <option>Price High to Low</option>
+              <select
+                className={styles.aliSortSelect}
+                value={sortBy}
+                onChange={e => setSortBy(e.target.value)}
+              >
+                <option value="relevance">Relevance</option>
+                <option value="price_asc">Price Low to High</option>
+                <option value="price_desc">Price High to Low</option>
               </select>
             </div>
           </div>
@@ -359,6 +341,7 @@ function ProductCatalog({ onAddToCart }) {
             <>
               <div className={styles.aliProductGrid}>
                 {filtered.map(product => {
+                  const isOOS = product.stock_quantity <= 0
                   const discountedPrice = getDiscountedPrice(product.price, product.discount_percentage)
                   const isPromo = product.discount_percentage > 0
 
@@ -366,11 +349,19 @@ function ProductCatalog({ onAddToCart }) {
                     <div
                       key={product.id}
                       className={styles.aliProdCard}
-                      onClick={() => navigate('/product-details', { state: { product } })}
+                      onClick={isOOS ? undefined : () => navigate('/product-details', { state: { product } })}
+                      style={isOOS ? { cursor: 'default', filter: 'grayscale(0.35)', opacity: 0.78 } : {}}
                     >
                       <div className={styles.aliProdImgWrap}>
-                        {isPromo && <span className={styles.aliBadgeDiscount}>-{parseFloat(product.discount_percentage).toFixed(0)}%</span>}
-                        {product.stock_quantity < 20 && <span className={styles.aliBadgeLowStock}>LOW STOCK</span>}
+                        {isOOS && (
+                          <span style={{
+                            position: 'absolute', background: '#6b7280', color: '#fff',
+                            padding: '3px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700,
+                            top: '8px', left: '8px', zIndex: 2
+                          }}>OUT OF STOCK</span>
+                        )}
+                        {!isOOS && isPromo && <span className={styles.aliBadgeDiscount}>-{parseFloat(product.discount_percentage).toFixed(0)}%</span>}
+                        {!isOOS && product.stock_quantity < 20 && <span className={styles.aliBadgeLowStock}>LOW STOCK</span>}
 
                         {getFirstImage(product) ? (
                           <img src={getFirstImage(product)} alt={product.name} />
@@ -400,12 +391,28 @@ function ProductCatalog({ onAddToCart }) {
                           <span className={styles.aliProdTag}>{product.category === 'Antibiotics' ? 'Cold Chain' : 'Verified'}</span>
                         </div>
 
+                        {!isOOS && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }} onClick={e => e.stopPropagation()}>
+                            <button
+                              onClick={() => setQty(product.id, getQty(product.id) - 1)}
+                              disabled={getQty(product.id) <= 1}
+                              style={{ width: 28, height: 28, borderRadius: '6px', border: '1px solid #d1d5db', background: '#f9fafb', cursor: 'pointer', fontSize: '1rem', fontWeight: 700, color: '#374151', lineHeight: 1 }}
+                            >−</button>
+                            <span style={{ minWidth: 24, textAlign: 'center', fontWeight: 700, fontSize: '0.9rem', color: '#0f172a' }}>{getQty(product.id)}</span>
+                            <button
+                              onClick={() => setQty(product.id, getQty(product.id) + 1)}
+                              disabled={getQty(product.id) >= product.stock_quantity}
+                              style={{ width: 28, height: 28, borderRadius: '6px', border: '1px solid #d1d5db', background: '#f9fafb', cursor: 'pointer', fontSize: '1rem', fontWeight: 700, color: '#374151', lineHeight: 1 }}
+                            >+</button>
+                          </div>
+                        )}
                         <button
                           className={styles.aliProdAddBtn}
-                          onClick={(e) => { e.stopPropagation(); handleAdd(product) }}
-                          disabled={product.stock_quantity <= 0 || addingId === product.id}
+                          onClick={(e) => { e.stopPropagation(); if (!isOOS) handleAdd(product) }}
+                          disabled={isOOS || addingId === product.id}
+                          style={isOOS ? { background: '#9ca3af', cursor: 'not-allowed' } : {}}
                         >
-                          {addingId === product.id ? 'ADDED' : 'ADD TO CART'}
+                          {isOOS ? 'OUT OF STOCK' : addingId === product.id ? 'ADDED ✓' : 'ADD TO CART'}
                         </button>
                       </div>
                     </div>
