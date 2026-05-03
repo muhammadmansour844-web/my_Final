@@ -4,11 +4,6 @@ const jwt = require('jsonwebtoken');
 
 const router = express.Router();
 
-// Add missing columns (silently ignored if they already exist)
-pool.query(`ALTER TABLE orders ADD COLUMN notes TEXT`).catch(() => {});
-pool.query(`ALTER TABLE orders ADD COLUMN shipped_at DATETIME`).catch(() => {});
-pool.query(`ALTER TABLE orders ADD COLUMN delivered_at DATETIME`).catch(() => {});
-
 // ===== Middleware =====
 
 const verifyToken = (req, res, next) => {
@@ -25,7 +20,7 @@ const verifyToken = (req, res, next) => {
 };
 
 const isAuthenticated = (req, res, next) => {
-  if (!['super_admin', 'company_admin', 'pharmacy_admin'].includes(req.user.account_type)) {
+  if (!['super_admin', 'company_admin', 'pharmacy_admin', 'delivery_admin'].includes(req.user.account_type)) {
     return res.status(403).json({ message: 'Access denied' });
   }
   next();
@@ -76,34 +71,114 @@ router.post('/', verifyToken, isAuthenticated, async (req, res) => {
       if (product.length === 0) {
         return res.status(404).json({ message: `Product ${item.product_id} not found` });
       }
-      if (product[0].stock_quantity < item.quantity) {
-        return res.status(400).json({ message: `Product ${item.product_id} insufficient stock` });
+
+      if (item.variant_id) {
+        const [variant] = await pool.query(
+          `SELECT stock_quantity, pieces_per_unit FROM product_unit_variants WHERE id = ?`, [item.variant_id]
+        );
+        if (variant.length === 0) return res.status(404).json({ message: `Variant ${item.variant_id} not found` });
+        const variantQty = Math.ceil(item.quantity / (variant[0].pieces_per_unit || 1));
+        if (variant[0].stock_quantity < variantQty) {
+          return res.status(400).json({ message: `Insufficient variant stock` });
+        }
+      } else {
+        if (product[0].stock_quantity < item.quantity) {
+          return res.status(400).json({ message: `Product ${item.product_id} insufficient stock` });
+        }
       }
     }
 
-    // إنشاء الطلبية
-    const [order] = await pool.query(
-      `INSERT INTO orders (pharmacy_id, company_id, status) VALUES (?, ?, 'pending')`,
-      [pharmacyId, company_id]
-    );
+    const conn = await pool.getConnection();
+    await conn.beginTransaction();
 
-    const orderId = order.insertId;
+    try {
+      // إنشاء الطلبية
+      const [order] = await conn.query(
+        `INSERT INTO orders (pharmacy_id, company_id, status) VALUES (?, ?, 'pending')`,
+        [pharmacyId, company_id]
+      );
 
-    // إضافة المنتجات للطلبية
-    for (const item of items) {
-      const [product] = await pool.query(
-        `SELECT price FROM products WHERE id = ?`, [item.product_id]
-      );
-      await pool.query(
-        `INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)`,
-        [orderId, item.product_id, item.quantity, product[0].price]
-      );
+      const orderId = order.insertId;
+
+      // إضافة المنتجات للطلبية وخصم المخزون
+      for (const item of items) {
+        const [product] = await conn.query(
+          `SELECT price FROM products WHERE id = ?`, [item.product_id]
+        );
+        await conn.query(
+          `INSERT INTO order_items (order_id, product_id, quantity, price, variant_id, variant_pieces) VALUES (?, ?, ?, ?, ?, ?)`,
+          [orderId, item.product_id, item.quantity, product[0].price, item.variant_id || null, item.variant_pieces || null]
+        );
+
+        if (item.variant_id) {
+          const variantQty = Math.ceil(item.quantity / (item.variant_pieces || 1));
+          await conn.query(
+            `UPDATE product_unit_variants SET stock_quantity = stock_quantity - ? WHERE id = ?`,
+            [variantQty, item.variant_id]
+          );
+        } else {
+          await conn.query(
+            `UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?`,
+            [item.quantity, item.product_id]
+          );
+        }
+      }
+
+      await conn.commit();
+      conn.release();
+
+      res.status(201).json({
+        message: 'Order created successfully',
+        orderId
+      });
+    } catch (txErr) {
+      await conn.rollback();
+      conn.release();
+      return res.status(500).json({ error: txErr.message });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ملخص المدفوعات — يجب قبل /:id حتى لا يُعامَل "summary" كـ id
+router.get('/summary/payments', verifyToken, isAuthenticated, async (req, res) => {
+  try {
+    let companyFilter = '';
+    const params = [];
+
+    if (req.user.account_type === 'company_admin') {
+      const [rel] = await pool.query(`SELECT company_id FROM company_users WHERE user_id = ?`, [req.user.id]);
+      if (rel.length === 0) return res.status(403).json({ message: 'Not linked to any company' });
+      companyFilter = 'AND o.company_id = ?';
+      params.push(rel[0].company_id);
+    } else if (!['super_admin'].includes(req.user.account_type)) {
+      return res.status(403).json({ message: 'Access denied' });
     }
 
-    res.status(201).json({ 
-      message: 'Order created successfully', 
-      orderId 
-    });
+    const [rows] = await pool.query(
+      `SELECT
+        ph.id   AS pharmacy_id,
+        ph.name AS pharmacy_name,
+        ph.phone AS pharmacy_phone,
+        c.id    AS company_id,
+        c.name  AS company_name,
+        COUNT(o.id) AS order_count,
+        COALESCE(SUM(CASE WHEN o.status = 'delivered' THEN (
+          SELECT SUM(oi.quantity * oi.price) FROM order_items oi WHERE oi.order_id = o.id
+        ) END), 0) AS total_delivered,
+        COALESCE(SUM(CASE WHEN o.status IN ('pending','approved','shipped') THEN (
+          SELECT SUM(oi.quantity * oi.price) FROM order_items oi WHERE oi.order_id = o.id
+        ) END), 0) AS total_pending
+       FROM orders o
+       LEFT JOIN pharmacies ph ON ph.id = o.pharmacy_id
+       LEFT JOIN companies  c  ON c.id  = o.company_id
+       WHERE o.status != 'rejected' ${companyFilter}
+       GROUP BY ph.id, c.id
+       ORDER BY total_delivered DESC`,
+      params
+    );
+    res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -143,6 +218,7 @@ router.get('/', verifyToken, isAuthenticated, async (req, res) => {
       const [rows] = await pool.query(
         `SELECT o.*,
           ph.name AS pharmacy_name,
+          ph.phone AS pharmacy_phone,
           COALESCE((
             SELECT SUM(oi.quantity * oi.price) FROM order_items oi WHERE oi.order_id = o.id
           ), 0) AS total_amount
@@ -150,6 +226,29 @@ router.get('/', verifyToken, isAuthenticated, async (req, res) => {
          LEFT JOIN pharmacies ph ON ph.id = o.pharmacy_id
          WHERE o.company_id = ?`,
         [relation[0].company_id]
+      );
+      return res.json(rows);
+    }
+
+    // delivery_admin — يشوف الطلبيات المشحونة المعينة له
+    if (req.user.account_type === 'delivery_admin') {
+      const [rows] = await pool.query(
+        `SELECT o.*,
+          ph.name AS pharmacy_name,
+          ph.phone AS pharmacy_phone,
+          ph.address AS pharmacy_address,
+          c.name  AS company_name,
+          u.name  AS driver_name,
+          COALESCE((
+            SELECT SUM(oi.quantity * oi.price) FROM order_items oi WHERE oi.order_id = o.id
+          ), 0) AS total_amount,
+          (SELECT COUNT(*) FROM order_items oi2 WHERE oi2.order_id = o.id) AS items_count
+         FROM orders o
+         LEFT JOIN pharmacies ph ON ph.id = o.pharmacy_id
+         LEFT JOIN companies  c  ON c.id  = o.company_id
+         LEFT JOIN users      u  ON u.id  = o.delivery_user_id
+         WHERE o.status = 'shipped' AND o.delivery_user_id = ?`,
+        [req.user.id]
       );
       return res.json(rows);
     }
@@ -198,10 +297,13 @@ router.get('/:id', verifyToken, isAuthenticated, async (req, res) => {
               ph.email AS pharmacy_email,
               c.name   AS company_name,
               JSON_ARRAYAGG(JSON_OBJECT(
+                'id',           oi.id,
                 'product_id',   oi.product_id,
                 'product_name', p.name,
                 'quantity',     oi.quantity,
-                'price',        oi.price
+                'price',        oi.price,
+                'variant_id',   oi.variant_id,
+                'variant_pieces', oi.variant_pieces
               )) as items
        FROM orders o
        JOIN order_items oi ON o.id = oi.order_id
@@ -250,7 +352,7 @@ router.get('/:id', verifyToken, isAuthenticated, async (req, res) => {
 router.put('/:id', verifyToken, isAuthenticated, async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, notes } = req.body;
+    const { status, notes, rejected_item_ids, delivery_user_id } = req.body;
 
     // تحقق إنه الطلبية موجودة
     const [existing] = await pool.query(
@@ -264,21 +366,24 @@ router.put('/:id', verifyToken, isAuthenticated, async (req, res) => {
 
     // تحديد مين بيقدر يغير لأي حالة
     const allowedTransitions = {
-      // الشركة بتوافق أو ترفض أو تشحن أو تلغي
+      // الشركة بتوافق أو ترفض أو تشحن
       company_admin: {
         pending: ['approved', 'rejected'],
-        approved: ['shipped', 'cancelled']
-      },
-      // الصيدلية بتلغي طلباتها المعلقة وبتأكد الاستلام
-      pharmacy_admin: {
-        pending: ['cancelled'],
+        approved: ['shipped', 'rejected'],
         shipped: ['delivered']
+      },
+      // الصيدلية ترفض طلباتها المعلقة وبتأكد الاستلام
+      pharmacy_admin: {
+        pending: ['rejected'],
+        shipped: ['delivered'],
+        delivered: ['completed']
       },
       // الأدمن يغير أي حالة
       super_admin: {
-        pending: ['approved', 'rejected', 'cancelled'],
-        approved: ['shipped', 'rejected', 'cancelled'],
-        shipped: ['delivered']
+        pending: ['approved', 'rejected'],
+        approved: ['shipped', 'rejected'],
+        shipped: ['delivered'],
+        delivered: ['completed']
       }
     };
 
@@ -287,8 +392,8 @@ router.put('/:id', verifyToken, isAuthenticated, async (req, res) => {
 
     // تحقق إنه التغيير مسموح
     if (!userTransitions?.[currentStatus]?.includes(status)) {
-      return res.status(400).json({ 
-        message: `Cannot change status from ${currentStatus} to ${status}` 
+      return res.status(400).json({
+        message: `Cannot change status from ${currentStatus} to ${status}`
       });
     }
 
@@ -315,39 +420,82 @@ router.put('/:id', verifyToken, isAuthenticated, async (req, res) => {
     }
 
     // حدّث الحالة والملاحظات
-    await pool.query(
-      `UPDATE orders SET status = ?, notes = COALESCE(?, notes) WHERE id = ?`,
-      [status, notes || null, id]
-    );
+    const conn = await pool.getConnection();
+    await conn.beginTransaction();
 
-    // لو shipped — حدّث shipped_at
-    if (status === 'shipped') {
-      await pool.query(
-        `UPDATE orders SET shipped_at = NOW() WHERE id = ?`, [id]
-      );
-    }
+    try {
+      // لو approved مع بعض المنتجات مرفوضة — احذفهم وارجع مخزونهم
+      if (status === 'approved' && Array.isArray(rejected_item_ids) && rejected_item_ids.length > 0) {
+        const [rejItems] = await conn.query(
+          `SELECT id, product_id, quantity, variant_id, variant_pieces FROM order_items WHERE id IN (?) AND order_id = ?`,
+          [rejected_item_ids, id]
+        );
+        for (const item of rejItems) {
+          if (item.variant_id) {
+            const variantQty = Math.ceil(item.quantity / (item.variant_pieces || 1));
+            await conn.query(
+              `UPDATE product_unit_variants SET stock_quantity = stock_quantity + ? WHERE id = ?`,
+              [variantQty, item.variant_id]
+            );
+          } else {
+            await conn.query(
+              `UPDATE products SET stock_quantity = stock_quantity + ? WHERE id = ?`,
+              [item.quantity, item.product_id]
+            );
+          }
+          await conn.query(`DELETE FROM order_items WHERE id = ?`, [item.id]);
+        }
+      }
 
-    // لو delivered — حدّث delivered_at
-    if (status === 'delivered') {
-      await pool.query(
-        `UPDATE orders SET delivered_at = NOW() WHERE id = ?`, [id]
+      await conn.query(
+        `UPDATE orders SET status = ?, notes = COALESCE(?, notes) WHERE id = ?`,
+        [status, notes || null, id]
       );
-    }
 
-    // لو cancelled أو rejected — رجّع الكمية للمخزون
-    if (status === 'cancelled' || status === 'rejected') {
-      const [orderItems] = await pool.query(
-        `SELECT product_id, quantity FROM order_items WHERE order_id = ?`, [id]
-      );
-      for (const item of orderItems) {
-        await pool.query(
-          `UPDATE products SET stock_quantity = stock_quantity + ? WHERE id = ?`,
-          [item.quantity, item.product_id]
+      // لو shipped — حدّث shipped_at وخصص السائق
+      if (status === 'shipped') {
+        await conn.query(
+          `UPDATE orders SET shipped_at = NOW(), delivery_user_id = COALESCE(?, delivery_user_id) WHERE id = ?`,
+          [delivery_user_id || null, id]
         );
       }
-    }
 
-    res.json({ message: `Order status updated to ${status}` });
+      // لو delivered — حدّث delivered_at
+      if (status === 'delivered') {
+        await conn.query(
+          `UPDATE orders SET delivered_at = NOW() WHERE id = ?`, [id]
+        );
+      }
+
+      // لو rejected — رجّع الكمية للمخزون فقط إذا ما كانت مرفوضة أصلاً
+      if (status === 'rejected' && currentStatus !== 'rejected') {
+        const [orderItems] = await conn.query(
+          `SELECT product_id, quantity, variant_id, variant_pieces FROM order_items WHERE order_id = ?`, [id]
+        );
+        for (const item of orderItems) {
+          if (item.variant_id) {
+            const variantQty = Math.ceil(item.quantity / (item.variant_pieces || 1));
+            await conn.query(
+              `UPDATE product_unit_variants SET stock_quantity = stock_quantity + ? WHERE id = ?`,
+              [variantQty, item.variant_id]
+            );
+          } else {
+            await conn.query(
+              `UPDATE products SET stock_quantity = stock_quantity + ? WHERE id = ?`,
+              [item.quantity, item.product_id]
+            );
+          }
+        }
+      }
+
+      await conn.commit();
+      conn.release();
+      res.json({ message: `Order status updated to ${status}` });
+    } catch (txErr) {
+      await conn.rollback();
+      conn.release();
+      return res.status(500).json({ error: txErr.message });
+    }
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -372,9 +520,42 @@ router.delete('/:id', verifyToken, isAuthenticated, async (req, res) => {
       return res.status(403).json({ message: 'Pharmacy cannot delete orders' });
     }
 
-    await pool.query(`DELETE FROM order_items WHERE order_id = ?`, [id]);
-    await pool.query(`DELETE FROM orders WHERE id = ?`, [id]);
-    res.json({ message: 'Order deleted successfully' });
+    const conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    try {
+      // إرجاع المخزون إذا الطلبية لم تكن مرفوضة مسبقاً
+      if (order.status !== 'rejected') {
+        const [orderItems] = await conn.query(
+          `SELECT product_id, quantity, variant_id, variant_pieces FROM order_items WHERE order_id = ?`, [id]
+        );
+        for (const item of orderItems) {
+          if (item.variant_id) {
+            const variantQty = Math.ceil(item.quantity / (item.variant_pieces || 1));
+            await conn.query(
+              `UPDATE product_unit_variants SET stock_quantity = stock_quantity + ? WHERE id = ?`,
+              [variantQty, item.variant_id]
+            );
+          } else {
+            await conn.query(
+              `UPDATE products SET stock_quantity = stock_quantity + ? WHERE id = ?`,
+              [item.quantity, item.product_id]
+            );
+          }
+        }
+      }
+
+      await conn.query(`DELETE FROM order_items WHERE order_id = ?`, [id]);
+      await conn.query(`DELETE FROM orders WHERE id = ?`, [id]);
+
+      await conn.commit();
+      conn.release();
+      res.json({ message: 'Order deleted successfully' });
+    } catch (txErr) {
+      await conn.rollback();
+      conn.release();
+      return res.status(500).json({ error: txErr.message });
+    }
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
