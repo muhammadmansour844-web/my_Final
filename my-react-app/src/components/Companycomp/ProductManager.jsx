@@ -48,7 +48,8 @@ function ProductManager() {
     setEditing({
       ...product,
       expiry_date: product.expiry_date ? product.expiry_date.split('T')[0] : '',
-      promotion_end_date: product.promotion_end_date ? product.promotion_end_date.substring(0, 16) : ''
+      promotion_end_date: product.promotion_end_date ? product.promotion_end_date.substring(0, 16) : '',
+      variants: product.variants || [],
     })
     setShowAddPage(true)
   }
@@ -59,7 +60,8 @@ function ProductManager() {
       const { existingImages, newFiles, ...fields } = formData
 
       // الخطوة 1: إرسال بيانات المنتج كـ JSON
-      const productBody = { ...fields, has_expiry: fields.expiry_date ? 1 : 0 }
+      const { variants, ...rest } = fields
+      const productBody = { ...rest, has_expiry: fields.expiry_date ? 1 : 0, variants: variants || [] }
       const url = editing ? `${API_PRODUCTS}/${editing.id}` : API_PRODUCTS
       const method = editing ? 'PUT' : 'POST'
 
@@ -142,6 +144,12 @@ function ProductManager() {
           {val} units
         </span>
       )
+    },
+    {
+      key: 'unit_type', label: 'Unit Type',
+      render: (val) => val
+        ? <span style={{ background: 'rgba(139,92,246,0.1)', color: '#8b5cf6', padding: '2px 8px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600 }}>{val}</span>
+        : <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>—</span>
     },
     {
       key: 'discount_percentage', label: 'Discount',
