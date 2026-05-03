@@ -6,9 +6,26 @@ const pool = require('../db');
 
 const router = express.Router();
 
-// ===== Auto-create pending_requests table =====
+// ===== Auto-create tables =====
 ;(async () => {
   try {
+    // Add missing columns to users table (safe to re-run — IF NOT EXISTS guard)
+    try {
+      await pool.query(`ALTER TABLE users ADD COLUMN phone VARCHAR(50) AFTER is_active`);
+    } catch (e) { /* column already exists */ }
+    try {
+      await pool.query(`ALTER TABLE users ADD COLUMN entity_name VARCHAR(255) AFTER phone`);
+    } catch (e) { /* column already exists */ }
+    // Extend users ENUM to include delivery_admin (safe to re-run)
+    try {
+      await pool.query(`ALTER TABLE users MODIFY COLUMN account_type ENUM('super_admin','company_admin','pharmacy_admin','delivery_admin') NOT NULL`);
+    } catch (e) { /* already up to date */ }
+
+    // Extend pending_requests ENUM to include delivery_admin (safe to re-run)
+    try {
+      await pool.query(`ALTER TABLE pending_requests MODIFY COLUMN account_type ENUM('company_admin','pharmacy_admin','delivery_admin') NOT NULL`);
+    } catch (e) { /* table may not exist yet — will be created below with correct ENUM */ }
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS pending_requests (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -16,13 +33,13 @@ const router = express.Router();
         email VARCHAR(255) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
         phone VARCHAR(50),
-        account_type ENUM('company_admin', 'pharmacy_admin') NOT NULL,
+        account_type ENUM('company_admin', 'pharmacy_admin', 'delivery_admin') NOT NULL,
         company_name VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
   } catch (err) {
-    console.error('Could not create pending_requests table:', err.message);
+    console.error('Could not run startup migrations:', err.message);
   }
 })();
 
@@ -64,19 +81,36 @@ const isSuperAdmin = (req, res, next) => {
   next();
 };
 
+// Get current user profile
+router.get('/profile', verifyToken, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, name, email, account_type, phone, entity_name, is_active, created_at FROM users WHERE id = ?`, [req.user.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ message: 'User not found' });
+    res.json(rows[0]);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // ===== Routes =====
 
 // Admin creates a user directly (active immediately)
 router.post('/register', verifyToken, isSuperAdmin, async (req, res) => {
   try {
-    const { name, email, password, account_type } = req.body;
+    const { name, email, password, account_type, company_id, phone, entity_name } = req.body;
 
     if (!name || !email || !password || !account_type) {
       return res.status(400).json({ message: 'All fields are required' });
     }
 
-    if (!['super_admin', 'company_admin', 'pharmacy_admin'].includes(account_type)) {
+    if (!['super_admin', 'company_admin', 'pharmacy_admin', 'delivery_admin'].includes(account_type)) {
       return res.status(400).json({ message: 'Invalid account type' });
+    }
+
+    if (account_type === 'company_admin' && !company_id) {
+      return res.status(400).json({ message: 'company_id is required for company_admin' });
     }
 
     const [existing] = await pool.query(`SELECT id FROM users WHERE email = ?`, [email]);
@@ -84,15 +118,27 @@ router.post('/register', verifyToken, isSuperAdmin, async (req, res) => {
       return res.status(409).json({ message: 'Email already exists' });
     }
 
+    if (company_id) {
+      const [comp] = await pool.query(`SELECT id FROM companies WHERE id = ?`, [company_id]);
+      if (comp.length === 0) return res.status(404).json({ message: 'Company not found' });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const [result] = await pool.query(
-      `INSERT INTO users (name, email, password, account_type, is_active) VALUES (?, ?, ?, ?, 1)`,
-      [name, email, hashedPassword, account_type]
+      `INSERT INTO users (name, email, password, account_type, is_active, phone, entity_name) VALUES (?, ?, ?, ?, 1, ?, ?)`,
+      [name, email, hashedPassword, account_type, phone || null, entity_name || null]
     );
+
+    if (account_type === 'company_admin' && company_id) {
+      await pool.query(
+        `INSERT INTO company_users (user_id, company_id) VALUES (?, ?)`,
+        [result.insertId, company_id]
+      );
+    }
 
     res.status(201).json({ message: 'User created successfully', userId: result.insertId });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: error.message });
   }
 });
 
@@ -101,11 +147,14 @@ router.post('/public-register', async (req, res) => {
   try {
     const { name, email, password, account_type, phone, company_name } = req.body;
 
-    if (!name || !email || !password || !account_type || !phone || !company_name) {
+    if (!name || !email || !password || !account_type || !phone) {
       return res.status(400).json({ message: 'All fields are required' });
     }
+    if (account_type !== 'delivery_admin' && !company_name) {
+      return res.status(400).json({ message: 'Organization name is required' });
+    }
 
-    if (!['company_admin', 'pharmacy_admin'].includes(account_type)) {
+    if (!['company_admin', 'pharmacy_admin', 'delivery_admin'].includes(account_type)) {
       return res.status(400).json({ message: 'Invalid account type' });
     }
 
@@ -137,7 +186,7 @@ router.post('/public-register', async (req, res) => {
       message: 'Registration request submitted successfully. Our team will review your application and contact you within 24-48 hours.'
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: error.message });
   }
 });
 
@@ -150,7 +199,7 @@ router.get('/pending', verifyToken, isSuperAdmin, async (req, res) => {
     );
     res.json(rows);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: error.message });
   }
 });
 
@@ -199,7 +248,7 @@ router.post('/approve/:id', verifyToken, isSuperAdmin, async (req, res) => {
 
     res.json({ message: 'User approved and activated successfully' });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: error.message });
   }
 });
 
@@ -231,7 +280,7 @@ router.post('/reject/:id', verifyToken, isSuperAdmin, async (req, res) => {
 
     res.json({ message: 'Request rejected successfully' });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: error.message });
   }
 });
 
@@ -262,7 +311,9 @@ router.post('/login', async (req, res) => {
 
     let entity_name = null;
     let entity_id = null;
-    if (user.account_type === 'pharmacy_admin') {
+    if (user.account_type === 'delivery_admin') {
+      entity_name = user.entity_name; // license number stored as entity_name
+    } else if (user.account_type === 'pharmacy_admin') {
       const [rel] = await pool.query(
         `SELECT ph.id, ph.name FROM pharmacy_users pu JOIN pharmacies ph ON ph.id = pu.pharmacy_id WHERE pu.user_id = ? LIMIT 1`,
         [user.id]
@@ -273,7 +324,24 @@ router.post('/login', async (req, res) => {
         `SELECT c.id, c.name FROM company_users cu JOIN companies c ON c.id = cu.company_id WHERE cu.user_id = ? LIMIT 1`,
         [user.id]
       );
-      if (rel.length > 0) { entity_name = rel[0].name; entity_id = rel[0].id; }
+      if (rel.length > 0) {
+        entity_name = rel[0].name;
+        entity_id = rel[0].id;
+      } else if (user.entity_name) {
+        // Fallback: auto-link by entity_name match
+        const [compMatch] = await pool.query(
+          `SELECT id, name FROM companies WHERE name = ? LIMIT 1`,
+          [user.entity_name]
+        );
+        if (compMatch.length > 0) {
+          entity_name = compMatch[0].name;
+          entity_id = compMatch[0].id;
+          await pool.query(
+            `INSERT IGNORE INTO company_users (user_id, company_id) VALUES (?, ?)`,
+            [user.id, compMatch[0].id]
+          );
+        }
+      }
     }
 
     const token = jwt.sign(
@@ -288,19 +356,21 @@ router.post('/login', async (req, res) => {
       user: { id: user.id, name: user.name, account_type: user.account_type, entity_name, entity_id }
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: error.message });
   }
 });
 
 // Get all active users
 router.get('/', verifyToken, isSuperAdmin, async (req, res) => {
   try {
-    const [rows] = await pool.query(
-      `SELECT id, name, email, account_type, phone, entity_name, is_active, created_at FROM users`
-    );
+    const [rows] = await pool.query(`
+      SELECT u.id, u.name, u.email, u.account_type, u.phone, u.entity_name, u.is_active, u.created_at,
+             (SELECT company_id FROM company_users WHERE user_id = u.id LIMIT 1) AS company_id
+      FROM users u
+    `);
     res.json(rows);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: error.message });
   }
 });
 
@@ -314,20 +384,20 @@ router.get('/:id', verifyToken, isSuperAdmin, async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ message: 'User not found' });
     res.json(rows[0]);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: error.message });
   }
 });
 
 // Update user
 router.put('/:id', verifyToken, isSuperAdmin, async (req, res) => {
   try {
-    const { name, email, account_type, is_active, password } = req.body;
+    const { name, email, account_type, is_active, password, company_id } = req.body;
     const { id } = req.params;
 
     const [existing] = await pool.query(`SELECT id FROM users WHERE id = ?`, [id]);
     if (existing.length === 0) return res.status(404).json({ message: 'User not found' });
 
-    if (account_type && !['super_admin', 'company_admin', 'pharmacy_admin'].includes(account_type)) {
+    if (account_type && !['super_admin', 'company_admin', 'pharmacy_admin', 'delivery_admin'].includes(account_type)) {
       return res.status(400).json({ message: 'Invalid account type' });
     }
 
@@ -344,9 +414,16 @@ router.put('/:id', verifyToken, isSuperAdmin, async (req, res) => {
       );
     }
 
+    if (account_type === 'company_admin' && company_id) {
+      const [comp] = await pool.query(`SELECT id FROM companies WHERE id = ?`, [company_id]);
+      if (comp.length === 0) return res.status(404).json({ message: 'Company not found' });
+      await pool.query(`DELETE FROM company_users WHERE user_id = ?`, [id]);
+      await pool.query(`INSERT INTO company_users (user_id, company_id) VALUES (?, ?)`, [id, company_id]);
+    }
+
     res.json({ message: 'User updated successfully' });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: error.message });
   }
 });
 
@@ -365,7 +442,7 @@ router.delete('/:id', verifyToken, isSuperAdmin, async (req, res) => {
     await pool.query(`DELETE FROM users WHERE id=?`, [id]);
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: error.message });
   }
 });
 
