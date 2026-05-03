@@ -4,6 +4,20 @@ const jwt = require('jsonwebtoken');
 
 const router = express.Router();
 
+const DEFAULT_UNITS = [
+  { name: 'Box', pieces_per_unit: 1 },
+  { name: 'Carton', pieces_per_unit: 24 },
+];
+
+const seedDefaultUnits = async (companyId) => {
+  for (const unit of DEFAULT_UNITS) {
+    await pool.query(
+      `INSERT IGNORE INTO unit_types (company_id, name, pieces_per_unit) VALUES (?, ?, ?)`,
+      [companyId, unit.name, unit.pieces_per_unit]
+    );
+  }
+};
+
 // ===== Middleware =====
 
 // التحقق من التوكن
@@ -61,9 +75,11 @@ router.post('/', verifyToken, isSuperAdmin, async (req, res) => {
       [name, email, phone, address]
     );
 
-    res.status(201).json({ 
-      message: 'Company created successfully', 
-      companyId: result.insertId 
+    await seedDefaultUnits(result.insertId);
+
+    res.status(201).json({
+      message: 'Company created successfully',
+      companyId: result.insertId
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
