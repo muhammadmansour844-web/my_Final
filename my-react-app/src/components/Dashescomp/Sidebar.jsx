@@ -32,6 +32,14 @@ const sidebarConfig = {
           { id: 'finance', label: 'Finance', icon: '💰' },
           { id: 'system', label: 'System', icon: '⚙️' },
         ]
+      },
+      {
+        label: 'Logistics',
+        links: [
+          { id: 'deliveries', label: 'Deliveries', icon: '🚚' },
+          { id: 'drivers', label: 'Drivers', icon: '🧑‍✈️' },
+          { id: 'driver_ratings', label: 'Ratings', icon: '⭐' },
+        ]
       }
     ]
   },
@@ -43,12 +51,10 @@ const sidebarConfig = {
       {
         label: 'Main',
         links: [
-          { id: 'my_orders', label: 'My Orders', icon: '🛒' },
+          { id: 'dashboard', label: 'Dashboard', icon: '🎛️' },
           { id: 'incoming_orders', label: 'Incoming Orders', icon: '📥' },
           { id: 'my_products', label: 'My Products', icon: '💊' },
-          { id: 'promotions', label: 'Promotions', icon: '📢' },
           { id: 'reports', label: 'Reports', icon: '📊' },
-          { id: 'dashboard', label: 'Dashboard', icon: '🎛️' },
           { id: 'settings', label: 'Settings', icon: '⚙️' },
         ]
       }
@@ -62,14 +68,14 @@ const sidebarConfig = {
       {
         label: 'Shopping',
         links: [
-          { id: 'catalog', label: 'Drug Catalog', icon: '💊' },
+          { id: 'products', label: 'Drug Catalog', icon: '💊' },
           { id: 'cart', label: 'My Cart', icon: '🛒' },
         ]
       },
       {
         label: 'Orders',
         links: [
-          { id: 'orders', label: 'My Orders', icon: '📦' },
+          { id: 'my_orders', label: 'My Orders', icon: '📦' },
         ]
       }
     ]
