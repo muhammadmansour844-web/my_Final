@@ -11,6 +11,7 @@ function RegisterRight() {
     phone: '',
     account_type: '',
     company_name: '',
+    license_number: '',
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -21,10 +22,19 @@ function RegisterRight() {
   }
 
   const handleRegister = async () => {
-    const { name, email, password, confirmPassword, phone, account_type, company_name } = form
+    const { name, email, password, confirmPassword, phone, account_type, company_name, license_number } = form
 
-    if (!name || !email || !password || !confirmPassword || !phone || !account_type || !company_name) {
+    const needsOrg = account_type !== 'delivery_admin'
+    if (!name || !email || !password || !confirmPassword || !phone || !account_type) {
       setError('Please fill in all fields.')
+      return
+    }
+    if (needsOrg && !company_name) {
+      setError('Please fill in all fields.')
+      return
+    }
+    if (account_type === 'delivery_admin' && !license_number) {
+      setError('Please enter your driver license number.')
       return
     }
 
@@ -45,7 +55,10 @@ function RegisterRight() {
       const response = await fetch('http://localhost:3000/api/users/public-register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password, account_type, phone, company_name }),
+        body: JSON.stringify({
+          name, email, password, account_type, phone,
+          company_name: account_type === 'delivery_admin' ? license_number : company_name,
+        }),
       })
 
       const data = await response.json()
@@ -67,7 +80,9 @@ function RegisterRight() {
     ? 'Company Name'
     : form.account_type === 'pharmacy_admin'
       ? 'Pharmacy Name'
-      : 'Company / Pharmacy Name'
+      : 'Organization Name'
+
+  const isDelivery = form.account_type === 'delivery_admin'
 
   if (success) {
     return (
@@ -144,19 +159,33 @@ function RegisterRight() {
               <option value="">— Select account type —</option>
               <option value="company_admin">Pharmaceutical Company</option>
               <option value="pharmacy_admin">Pharmacy</option>
+              <option value="delivery_admin">Delivery Driver</option>
             </select>
           </div>
 
-          <div className={`${styles.loginField} ${styles.fullWidth}`}>
-            <label>{companyLabel}</label>
-            <input
-              type="text"
-              name="company_name"
-              placeholder={form.account_type === 'company_admin' ? 'e.g. Al-Dawaa Pharmaceuticals' : 'e.g. City Pharmacy'}
-              value={form.company_name}
-              onChange={handleChange}
-            />
-          </div>
+          {isDelivery ? (
+            <div className={`${styles.loginField} ${styles.fullWidth}`}>
+              <label>Driver License #</label>
+              <input
+                type="text"
+                name="license_number"
+                placeholder="e.g. DL-84729-CA"
+                value={form.license_number}
+                onChange={handleChange}
+              />
+            </div>
+          ) : (
+            <div className={`${styles.loginField} ${styles.fullWidth}`}>
+              <label>{companyLabel}</label>
+              <input
+                type="text"
+                name="company_name"
+                placeholder={form.account_type === 'company_admin' ? 'e.g. Al-Dawaa Pharmaceuticals' : 'e.g. City Pharmacy'}
+                value={form.company_name}
+                onChange={handleChange}
+              />
+            </div>
+          )}
 
           <div className={styles.loginField}>
             <label>Password</label>
