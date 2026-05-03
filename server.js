@@ -12,6 +12,8 @@ const productRoutes = require('./routes/products');
 const cartRoutes = require('./routes/carts');
 const orderRoutes = require('./routes/orders');
 const paymentRoutes = require('./routes/payments');
+const unitTypeRoutes = require('./routes/unit-types');
+const deliveriesRoutes = require('./routes/deliveries');
 
 const app = express();
 
@@ -29,6 +31,8 @@ app.use('/api/products', productRoutes);
 app.use('/api/carts', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/unit-types', unitTypeRoutes);
+app.use('/api/deliveries', deliveriesRoutes);
 
 // معالجة أي مسار غير موجود
 app.use((req, res) => {
